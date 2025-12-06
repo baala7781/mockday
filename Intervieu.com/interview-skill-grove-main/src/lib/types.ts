@@ -1,0 +1,16 @@
+export type InterviewRole = 
+  | 'software-engineer' 
+  | 'product-manager' 
+  | 'data-scientist'
+  | 'data-science'
+  | 'data-engineer'
+  | 'graduate'
+  | 'graduate-data-engineer'
+  | 'graduate-data-scientist'
+  | 'frontend-developer'
+  | 'backend-developer'
+  | 'fullstack-developer'
+  | 'devops-engineer'
+  | 'machine-learning-engineer'
+  | 'cloud-engineer'
+  | 'security-engineer';
