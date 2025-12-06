@@ -474,6 +474,9 @@ async def upload_and_parse_resume(
         resumes.append(resume_meta)
         
         # Update profile with new resume
+        logger.info(f"💾 Saving resume metadata to Firestore for user {user_id}")
+        logger.debug(f"Resumes list length: {len(resumes)}")
+        
         success = await firestore_client.set_document(
             "users", 
             user_id, 
@@ -482,7 +485,16 @@ async def upload_and_parse_resume(
         )
         
         if not success:
-            raise HTTPException(status_code=500, detail="Failed to save resume metadata")
+            logger.error(f"❌ Failed to save resume metadata to Firestore for user {user_id}")
+            # Check if Firestore client is initialized
+            if not firestore_client.db:
+                logger.error("Firestore client is not initialized!")
+            raise HTTPException(
+                status_code=500, 
+                detail="Failed to save resume metadata. Please try again."
+            )
+        
+        logger.info(f"✅ Successfully saved resume metadata for user {user_id}")
         
         # Update Redis cache
         try:
@@ -861,7 +873,7 @@ async def get_interviews(user: dict = Depends(get_current_user)):
     """Get all interviews for the user, sorted by most recent."""
     try:
         user_id = user["uid"]
-        logger.info(f"📋 Fetching interviews for user: {user_id}")
+        logger.info(f"📋 GET /api/interviews - Fetching interviews for user: {user_id}")
         
         # Track interview IDs we've seen to avoid duplicates
         seen_interview_ids = set()
@@ -998,9 +1010,16 @@ async def get_interviews(user: dict = Depends(get_current_user)):
         
     except HTTPException:
         raise
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
         logger.error(f"Error getting interviews: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"An error occurred while fetching reports: {e}")
+        # Return proper JSON error response
+        raise HTTPException(
+            status_code=500, 
+            detail=f"An error occurred while fetching interviews: {sanitize_error_message(e)}"
+        )
 
 
 @app.post("/api/admin/regenerate-report/{interview_id}")

@@ -45,22 +45,30 @@ class FirestoreClient:
     ) -> bool:
         """Set a document in Firestore."""
         if not self.db:
+            print(f"ERROR: Firestore client not initialized. Cannot set document {collection}/{document_id}")
             return False
         try:
             import asyncio
+            import logging
+            logger = logging.getLogger(__name__)
+            
             # Run synchronous Firestore operation in executor to avoid blocking
             def _set_doc():
                 ref = self.db.collection(collection).document(document_id)
                 if merge:
                     ref.set(data, merge=True)
+                    logger.info(f"✅ Merged document {collection}/{document_id}")
                 else:
                     ref.set(data)
+                    logger.info(f"✅ Set document {collection}/{document_id}")
             
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, _set_doc)
             return True
         except Exception as e:
-            print(f"Error setting document: {e}")
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"❌ Error setting document {collection}/{document_id}: {type(e).__name__}: {str(e)}", exc_info=True)
             return False
     
     async def update_document(
