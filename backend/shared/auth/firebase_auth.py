@@ -119,9 +119,21 @@ def initialize_firebase():
             
             # Initialize with explicit credential and options
             # This ensures Firebase uses our credential object, not env vars
-            firebase_app = initialize_app(cred, options if options else None, name='[DEFAULT]')
-            print(f"Firebase: Initialization successful! Project: {options.get('projectId')}")
-            print(f"Firebase: App name: {firebase_app.name}, Credential type: {type(cred).__name__}")
+            try:
+                firebase_app = initialize_app(cred, options if options else None, name='[DEFAULT]')
+                print(f"✅ Firebase: Initialization successful! Project: {options.get('projectId')}")
+                print(f"✅ Firebase: App name: {firebase_app.name}, Credential type: {type(cred).__name__}")
+                
+                # Verify Firestore can access the app
+                try:
+                    test_db = admin_firestore.client()
+                    print("✅ Firebase: Firestore client test successful")
+                except Exception as e:
+                    print(f"⚠️ Firebase: Firestore client test failed: {type(e).__name__}: {str(e)[:200]}")
+            except Exception as init_error:
+                error_msg = str(init_error)
+                print(f"❌ Firebase: initialize_app() failed: {type(init_error).__name__}: {error_msg[:300]}")
+                raise
         else:
             # Try to initialize with just options (for Application Default Credentials)
             if options.get("projectId"):
