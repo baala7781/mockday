@@ -50,28 +50,19 @@ class Settings(BaseSettings):
         "http://localhost:5174"
     )
     
+    # ALLOWED_ORIGINS - accept comma-separated string from env
+    # Don't use List[str] type to avoid Pydantic JSON parsing issues
+    ALLOWED_ORIGINS_STR: str = os.getenv("ALLOWED_ORIGINS", "http://localhost:5174,http://localhost:3000")
+    
     @property
     def cors_origins(self) -> List[str]:
         """Get CORS allowed origins from environment or defaults."""
-        env_origins = os.getenv("ALLOWED_ORIGINS", "")
-        if env_origins:
-            return [origin.strip() for origin in env_origins.split(",")]
-        # Default origins for development
-        return [
-            "http://localhost:5174",
-            "http://localhost:3000",
-            "http://127.0.0.1:5174",
-        ]
-    
-    # Keep for backward compatibility
-    ALLOWED_ORIGINS: List[str] = [
-        "http://localhost:5174",
-        "http://localhost:3000",
-        "https://*.netlify.app",
-        "https://*.vercel.app",
-        "https://*.render.com",
-        "https://*.railway.app",
-    ]
+        origins_str = self.ALLOWED_ORIGINS_STR
+        if origins_str == "*":
+            return ["*"]
+        if origins_str:
+            return [origin.strip() for origin in origins_str.split(",")]
+        return ["http://localhost:5174", "http://localhost:3000"]
     
     # Queue
     RABBITMQ_URL: str = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
