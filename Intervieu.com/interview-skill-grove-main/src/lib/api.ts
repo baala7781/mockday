@@ -20,8 +20,23 @@ export interface ResumeMeta {
   uploadedAt?: string
 }
 
+// Get API base URL - use backend URL in production, proxy in development
+const getApiBaseUrl = () => {
+  if (import.meta.env.DEV) {
+    return '/api'; // Vite proxy in development
+  }
+  const apiUrl = import.meta.env.VITE_API_URL;
+  if (apiUrl) {
+    return apiUrl.endsWith('/api') ? apiUrl : `${apiUrl}/api`;
+  }
+  return '/api';
+};
+
 async function authedFetch(path: string, token: string, init?: RequestInit) {
-  const res = await fetch(path, {
+  const baseUrl = getApiBaseUrl();
+  const fullPath = path.startsWith('/') ? `${baseUrl}${path}` : `${baseUrl}/${path}`;
+  
+  const res = await fetch(fullPath, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
@@ -65,7 +80,8 @@ export async function uploadResume(token: string, file: File): Promise<{ status:
   const formData = new FormData()
   formData.append('file', file)
   
-  const res = await fetch('/api/resumes/upload', {
+  const baseUrl = getApiBaseUrl();
+  const res = await fetch(`${baseUrl}/resumes/upload`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
