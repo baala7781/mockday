@@ -2467,18 +2467,19 @@ async def get_deepgram_token(interview_id: str):
             logger.error("No Deepgram API key available")
             raise HTTPException(status_code=503, detail="STT service temporarily unavailable")
         
-        # Return the API key (frontend will use it for direct connection)
-        # Note: This is safe because:
-        # 1. The key is already from our pool (we control it)
-        # 2. Frontend can only use it for STT (can't modify our account)
-        # 3. We can rotate keys if needed
-        logger.info(f"Providing Deepgram API key for interview {interview_id}")
+        # SECURITY: Do NOT return the actual API key to frontend
+        # Instead, return a token that can be used server-side
+        # Frontend should use WebSocket for STT, not direct Deepgram connection
+        logger.info(f"Deepgram token requested for interview {interview_id}")
         
+        # Return a token identifier, not the actual key
+        # Frontend should use WebSocket for STT instead
         return {
-            "api_key": account.api_key,
+            "token": f"dg_token_{interview_id}_{int(time.time())}",
             "expires_in": 300,  # 5 minutes
             "model": "nova-2",
-            "language": "en-US"
+            "language": "en-US",
+            "note": "Use WebSocket for STT. This endpoint is deprecated."
         }
     except HTTPException:
         raise

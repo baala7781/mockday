@@ -349,10 +349,7 @@ const InterviewInterface: React.FC<InterviewInterfaceProps> = ({ interviewId }) 
     setIsSubmitting(false);
   };
 
-  // Calculate progress percentage
-  const progressPercentage = progress 
-    ? Math.round((progress.questions_answered / progress.total_questions) * 100)
-    : 0;
+  // Progress is shown as "X of Y questions" instead of percentage
 
   // Show loading while checking interview status
   if (isCheckingStatus) {
@@ -480,17 +477,19 @@ const InterviewInterface: React.FC<InterviewInterfaceProps> = ({ interviewId }) 
               <div className="flex justify-between items-center mb-2">
                   <p className="text-sm font-medium">Interview Progress</p>
               </div>
-              <Progress value={progressPercentage} />
               {progress && (
-                <div className="space-y-1 mt-2">
+                <div className="space-y-2 mt-2">
                   <div className="flex justify-between items-center">
                     <p className="text-xs text-muted-foreground">
                       Phase: {progress.current_phase.replace('_', ' ').toUpperCase()}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {progressPercentage}% Complete
+                      {progress.questions_answered} of {progress.total_questions} questions
                     </p>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Interview continues until {progress.total_questions} questions or 30 minutes
+                  </p>
                   {isSubmitting && (
                     <p className="text-xs text-yellow-600 flex items-center gap-1">
                       <Loader2 className="w-3 h-3 animate-spin" />
