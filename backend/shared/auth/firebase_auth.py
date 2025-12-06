@@ -3,6 +3,7 @@ from fastapi import HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from firebase_admin import auth as firebase_auth
 from firebase_admin import credentials, initialize_app, get_app
+from firebase_admin import firestore as admin_firestore
 import firebase_admin
 import os
 import json
