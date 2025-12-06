@@ -31,9 +31,16 @@ def initialize_firebase():
             try:
                 creds_dict = json.loads(json_creds)
                 cred = credentials.Certificate(creds_dict)
-                print("Firebase: Using credentials from GOOGLE_APPLICATION_CREDENTIALS_JSON")
+                # Extract project_id from credentials for options
+                project_id = creds_dict.get("project_id")
+                print(f"Firebase: Using credentials from GOOGLE_APPLICATION_CREDENTIALS_JSON (project: {project_id})")
             except json.JSONDecodeError as e:
                 print(f"Warning: Invalid JSON in GOOGLE_APPLICATION_CREDENTIALS_JSON: {e}")
+                creds_dict = None
+                project_id = None
+        else:
+            creds_dict = None
+            project_id = None
         
         # Option 2: File path in environment variable
         if not cred and settings.GOOGLE_APPLICATION_CREDENTIALS:
@@ -48,8 +55,24 @@ def initialize_firebase():
         if not cred and os.path.exists(settings.FIREBASE_CREDENTIALS_PATH):
             cred = credentials.Certificate(settings.FIREBASE_CREDENTIALS_PATH)
             print("Firebase: Using credentials from FIREBASE_CREDENTIALS_PATH")
+            # Try to extract project_id from file
+            try:
+                with open(settings.FIREBASE_CREDENTIALS_PATH, 'r') as f:
+                    file_creds = json.load(f)
+                    project_id = file_creds.get("project_id")
+            except:
+                project_id = None
         
         options = {}
+        # Set project_id explicitly (required for Firebase Auth)
+        if project_id:
+            options["projectId"] = project_id
+        elif settings.FIREBASE_STORAGE_BUCKET:
+            # Extract project_id from storage bucket if available
+            bucket_parts = settings.FIREBASE_STORAGE_BUCKET.split('.')
+            if len(bucket_parts) > 0:
+                options["projectId"] = bucket_parts[0]
+        
         if settings.FIREBASE_STORAGE_BUCKET:
             options["storageBucket"] = settings.FIREBASE_STORAGE_BUCKET
         
