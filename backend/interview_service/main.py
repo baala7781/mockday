@@ -56,6 +56,15 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Lifespan events for FastAPI app."""
     # Startup
+    # Ensure Firebase is initialized before anything else
+    try:
+        from shared.auth.firebase_auth import initialize_firebase
+        initialize_firebase()
+        logger.info("✅ Firebase initialized during startup")
+    except Exception as e:
+        logger.error(f"❌ Firebase initialization failed during startup: {type(e).__name__}: {str(e)[:200]}")
+        # Continue anyway - individual operations will handle errors
+    
     await redis_client.connect()
     logger.info("Interview Service started")
     yield
