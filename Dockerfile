@@ -24,6 +24,9 @@ RUN rm -rf tests/ scripts/ intervieu/ __pycache__/ *.md docs/
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
-# Railway uses PORT env var
-CMD uvicorn interview_service.main:app --host 0.0.0.0 --port ${PORT:-8002} --workers 2 --ws-ping-interval 20 --ws-ping-timeout 120
+# Expose port for Railway
+EXPOSE 8080
+
+# Railway uses PORT env var - use single worker to avoid issues
+CMD uvicorn interview_service.main:app --host 0.0.0.0 --port ${PORT:-8080}
 

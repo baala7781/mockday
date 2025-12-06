@@ -170,11 +170,13 @@ websocket_handler = InterviewWebSocketHandler(manager)
 @app.get("/")
 async def root():
     """Root endpoint."""
+    logger.info("Root endpoint called")
     return {"message": "Intervieu API", "status": "running"}
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
+    logger.info("Health check called")
     return {"status": "ok", "service": "interview-service"}
 
 
