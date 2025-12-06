@@ -12,9 +12,27 @@ class FirestoreClient:
     def __init__(self):
         """Initialize Firestore client."""
         try:
+            # Ensure Firebase is initialized before creating Firestore client
+            from firebase_admin import get_app
+            try:
+                get_app()
+            except ValueError:
+                # Firebase not initialized, try to initialize it
+                from shared.auth.firebase_auth import initialize_firebase
+                initialize_firebase()
+            
             self.db = admin_firestore.client()
+            print("✅ Firestore client initialized successfully")
         except Exception as e:
-            print(f"Warning: Firestore client initialization failed: {e}")
+            import logging
+            logger = logging.getLogger(__name__)
+            error_msg = str(e)
+            if "insufficient authentication scopes" in error_msg.lower() or "ACCESS_TOKEN_SCOPE_INSUFFICIENT" in error_msg:
+                logger.error("❌ Firestore authentication error: Service account lacks Firestore permissions.")
+                logger.error("   Fix: Grant 'Cloud Datastore User' or 'Firestore User' role to service account in Google Cloud Console")
+                logger.error(f"   Service account: Check GOOGLE_APPLICATION_CREDENTIALS_JSON -> client_email")
+            else:
+                logger.error(f"❌ Firestore client initialization failed: {type(e).__name__}: {error_msg[:200]}")
             self.db = None
     
     async def get_document(self, collection: str, document_id: str) -> Optional[Dict[str, Any]]:

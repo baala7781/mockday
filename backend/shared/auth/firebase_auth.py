@@ -48,14 +48,17 @@ def initialize_firebase():
                 # Extract project_id BEFORE creating credential
                 project_id = creds_dict.get("project_id")
                 # Create credential from dict (not file path)
+                # CRITICAL: Service account credentials automatically have required scopes
+                # But we need to ensure the service account has Firestore permissions in Firebase Console
                 cred = credentials.Certificate(creds_dict)
                 print(f"Firebase: Using credentials from GOOGLE_APPLICATION_CREDENTIALS_JSON (project: {project_id})")
+                print(f"Firebase: Service account email: {creds_dict.get('client_email', 'N/A')}")
             except json.JSONDecodeError as e:
-                print(f"Warning: Invalid JSON in GOOGLE_APPLICATION_CREDENTIALS_JSON: {e}")
+                print(f"ERROR: Invalid JSON in GOOGLE_APPLICATION_CREDENTIALS_JSON: {e}")
                 cred = None
                 project_id = None
             except Exception as e:
-                print(f"Warning: Failed to create Firebase credentials from JSON: {e}")
+                print(f"ERROR: Failed to create Firebase credentials from JSON: {type(e).__name__}: {str(e)[:200]}")
                 cred = None
                 project_id = None
         
