@@ -51,20 +51,27 @@ def initialize_firebase():
                 creds_dict = json.loads(json_creds)
                 # Extract project_id BEFORE creating credential
                 project_id = creds_dict.get("project_id")
+                if not project_id:
+                    raise ValueError("project_id not found in service account JSON")
                 # Create credential from dict (not file path)
                 # CRITICAL: Service account credentials automatically have required scopes
                 # But we need to ensure the service account has Firestore permissions in Firebase Console
                 cred = credentials.Certificate(creds_dict)
-                print(f"Firebase: Using credentials from GOOGLE_APPLICATION_CREDENTIALS_JSON (project: {project_id})")
-                print(f"Firebase: Service account email: {creds_dict.get('client_email', 'N/A')}")
+                print(f"✅ Firebase: Using credentials from GOOGLE_APPLICATION_CREDENTIALS_JSON (project: {project_id})")
+                print(f"✅ Firebase: Service account email: {creds_dict.get('client_email', 'N/A')}")
             except json.JSONDecodeError as e:
-                print(f"ERROR: Invalid JSON in GOOGLE_APPLICATION_CREDENTIALS_JSON: {e}")
+                print(f"❌ ERROR: Invalid JSON in GOOGLE_APPLICATION_CREDENTIALS_JSON: {e}")
+                print(f"❌ First 200 chars of value: {json_creds[:200] if json_creds else 'N/A'}")
                 cred = None
                 project_id = None
             except Exception as e:
-                print(f"ERROR: Failed to create Firebase credentials from JSON: {type(e).__name__}: {str(e)[:200]}")
+                print(f"❌ ERROR: Failed to create Firebase credentials from JSON: {type(e).__name__}: {str(e)[:200]}")
                 cred = None
                 project_id = None
+        else:
+            print("⚠️ WARNING: GOOGLE_APPLICATION_CREDENTIALS_JSON is not set!")
+            print("⚠️ This is required for Railway/cloud deployments.")
+            print("⚠️ Set it in Railway environment variables with your Firebase service account JSON.")
         
         # Option 2: File path in environment variable (only if it's actually a file path)
         if not cred and settings.GOOGLE_APPLICATION_CREDENTIALS:
