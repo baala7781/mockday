@@ -167,6 +167,11 @@ websocket_handler = InterviewWebSocketHandler(manager)
 # ============================================================================
 # Health Check
 # ============================================================================
+@app.get("/")
+async def root():
+    """Root endpoint."""
+    return {"message": "Intervieu API", "status": "running"}
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
@@ -2367,12 +2372,6 @@ async def websocket_endpoint(websocket: WebSocket, interview_id: str):
                 if interview_id in manager.last_ping_time:
                     del manager.last_ping_time[interview_id]
             logger.info(f"WebSocket connection cleaned up: {interview_id} (Remaining: {len(manager.active_connections)})")
-
-
-@app.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    return {"status": "healthy", "service": "interview-service"}
 
 
 @app.get("/api/interviews/{interview_id}/deepgram-token")
