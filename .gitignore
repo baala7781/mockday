@@ -1,0 +1,154 @@
+# =============================================================================
+# Intervieu - Git Ignore
+# =============================================================================
+
+# =============================================================================
+# SECRETS & ENVIRONMENT (CRITICAL - NEVER COMMIT)
+# =============================================================================
+.env
+.env.local
+.env.production
+.env.*.local
+*.env
+firebase-service-account.json
+*-service-account.json
+*.pem
+*.key
+secrets/
+
+# =============================================================================
+# PYTHON
+# =============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
+venv/
+env/
+ENV/
+intervieu/
+.venv/
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# mypy
+.mypy_cache/
+
+# =============================================================================
+# NODE / JAVASCRIPT
+# =============================================================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+bun.lockb
+
+# Build outputs
+dist/
+.next/
+out/
+.nuxt/
+.output/
+
+# =============================================================================
+# IDE & EDITORS
+# =============================================================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# =============================================================================
+# OS FILES
+# =============================================================================
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# =============================================================================
+# LOGS & TEMP FILES
+# =============================================================================
+logs/
+*.log
+*.tmp
+*.temp
+*.bak
+.temp/
+
+# =============================================================================
+# TESTING
+# =============================================================================
+coverage/
+.nyc_output/
+test-results/
+
+# =============================================================================
+# PROJECT SPECIFIC
+# =============================================================================
+# Development docs (keep only README)
+ADVANCED_IMPROVEMENTS_SUMMARY.md
+ALL_PROMPTS.md
+CURRENT_ISSUES_ANALYSIS.md
+DEVELOPMENT.md
+FIXES_APPLIED.md
+INTERVIEW_PROCESS_IMPLEMENTATION.md
+INTERVIEW_SYSTEM_DESIGN.md
+LLM_OPTIMIZATION_CHANGES.md
+SKILL_SELECTION_EXPLANATION.md
+STT_FILES_REFERENCE.md
+SYSTEM_DESIGN_DOCUMENT.md
+INTERVIEW_FLOW_STRATEGY.md
+
+# Archive files
+*.tar.gz
+*.zip
+*.rar
+
+# Test files (keep in tests/ folder)
+test_*.py
+!backend/tests/*.py
+

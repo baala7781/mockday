@@ -1,0 +1,18 @@
+# Render.com deployment configuration
+services:
+  - type: web
+    name: intervieu-backend
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn interview_service.main:app --host 0.0.0.0 --port $PORT --workers 2 --ws-ping-interval 20 --ws-ping-timeout 120
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12"
+      - key: ENVIRONMENT
+        value: production
+      - key: FIREBASE_CREDENTIALS_PATH
+        value: /app/firebase-service-account.json
+      # Add other env vars in Render dashboard (secrets)
+
