@@ -1,0 +1,13 @@
+# Nixpacks configuration for Railway
+[phases.setup]
+nixPkgs = ["python312"]
+
+[phases.install]
+cmds = ["pip install -r requirements.txt"]
+
+[start]
+cmd = "uvicorn interview_service.main:app --host 0.0.0.0 --port ${PORT:-8002} --workers 2 --ws-ping-interval 20 --ws-ping-timeout 120"
+
+[variables]
+PYTHON_VERSION = "3.12"
+
