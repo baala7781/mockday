@@ -347,12 +347,28 @@ export const interviewService = {
       }
 
       const apiUrl = getApiUrl();
-      const response = await fetch(`${apiUrl}/interviews`, {
+      // Ensure we have the correct path
+      const url = apiUrl.endsWith('/api') 
+        ? `${apiUrl}/interviews` 
+        : `${apiUrl}/api/interviews`;
+      
+      console.log('Fetching interviews from:', url);
+      
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
       });
+
+      // Check if response is HTML (error page)
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('text/html')) {
+        const html = await response.text();
+        console.error('Received HTML instead of JSON:', html.substring(0, 200));
+        throw new Error(`Server returned HTML instead of JSON. Status: ${response.status}. Check API URL configuration.`);
+      }
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ detail: 'Failed to get interviews' }));
