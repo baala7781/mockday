@@ -41,7 +41,10 @@ def initialize_firebase():
         
         # Option 1: JSON content in environment variable (for Railway/cloud deployments)
         json_creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+        print(f"DEBUG: GOOGLE_APPLICATION_CREDENTIALS_JSON is {'SET' if json_creds else 'NOT SET'}")
         if json_creds:
+            print(f"DEBUG: GOOGLE_APPLICATION_CREDENTIALS_JSON length: {len(json_creds)} chars")
+            print(f"DEBUG: First 100 chars: {json_creds[:100]}...")
             try:
                 # Remove any surrounding quotes if present
                 json_creds = json_creds.strip().strip('"').strip("'")
@@ -137,9 +140,17 @@ def initialize_firebase():
                 raise
         else:
             # Try to initialize with just options (for Application Default Credentials)
+            # WARNING: This should NOT happen if GOOGLE_APPLICATION_CREDENTIALS_JSON is set correctly
+            print("⚠️ WARNING: No credentials found! Attempting Application Default Credentials (this will likely fail)")
+            print(f"⚠️ DEBUG: json_creds was: {'SET' if json_creds else 'NOT SET'}")
             if options.get("projectId"):
-                initialize_app(options=options)
-                print(f"Firebase: Initialized with Application Default Credentials. Project: {options.get('projectId')}")
+                try:
+                    initialize_app(options=options)
+                    print(f"⚠️ Firebase: Initialized with Application Default Credentials. Project: {options.get('projectId')}")
+                    print("⚠️ WARNING: This will fail when trying to use Firebase services!")
+                except Exception as e:
+                    print(f"❌ Application Default Credentials initialization failed: {type(e).__name__}: {str(e)[:200]}")
+                    raise
             else:
                 error_msg = "ERROR: Firebase credentials not found and projectId not set. Cannot initialize Firebase."
                 print(error_msg)
