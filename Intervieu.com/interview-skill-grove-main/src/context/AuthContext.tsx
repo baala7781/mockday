@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { auth } from '../firebase'; // We will create this file next
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { getProfile, getResumes } from '../lib/api';
+import { getProfile, getResumes } from '@/lib/api';
 
 interface AuthContextType {
   currentUser: User | null;
