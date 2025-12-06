@@ -194,7 +194,23 @@ async def root():
 async def health_check():
     """Health check endpoint."""
     logger.info("Health check called")
-    return {"status": "ok", "service": "interview-service"}
+    
+    # Check Firebase status
+    firebase_status = "unknown"
+    try:
+        from firebase_admin import get_app
+        app = get_app()
+        firebase_status = "initialized"
+    except ValueError:
+        firebase_status = "not_initialized"
+    except Exception as e:
+        firebase_status = f"error: {type(e).__name__}"
+    
+    return {
+        "status": "ok",
+        "service": "interview-service",
+        "firebase": firebase_status
+    }
 
 
 # ============================================================================
