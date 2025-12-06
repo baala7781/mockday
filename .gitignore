@@ -152,3 +152,4 @@ INTERVIEW_FLOW_STRATEGY.md
 test_*.py
 !backend/tests/*.py
 
+.history/
