@@ -10,19 +10,32 @@ class FirestoreClient:
     """Firestore client wrapper."""
     
     def __init__(self):
-        """Initialize Firestore client."""
+        """Initialize Firestore client (lazy initialization)."""
+        self.db = None
+        self._initialized = False
+    
+    def _ensure_initialized(self):
+        """Ensure Firebase is initialized and Firestore client is ready."""
+        if self._initialized and self.db:
+            return
+        
         try:
             # Ensure Firebase is initialized before creating Firestore client
             from firebase_admin import get_app
             try:
-                get_app()
+                app = get_app()
             except ValueError:
                 # Firebase not initialized, try to initialize it
                 from shared.auth.firebase_auth import initialize_firebase
                 initialize_firebase()
+                app = get_app()
             
+            # Now create Firestore client
             self.db = admin_firestore.client()
-            print("✅ Firestore client initialized successfully")
+            self._initialized = True
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info("✅ Firestore client initialized successfully")
         except Exception as e:
             import logging
             logger = logging.getLogger(__name__)
@@ -31,12 +44,18 @@ class FirestoreClient:
                 logger.error("❌ Firestore authentication error: Service account lacks Firestore permissions.")
                 logger.error("   Fix: Grant 'Cloud Datastore User' or 'Firestore User' role to service account in Google Cloud Console")
                 logger.error(f"   Service account: Check GOOGLE_APPLICATION_CREDENTIALS_JSON -> client_email")
+            elif "DefaultCredentialsError" in error_msg or "default credentials were not found" in error_msg.lower():
+                logger.error("❌ Firestore client error: Firebase not properly initialized.")
+                logger.error("   This usually means GOOGLE_APPLICATION_CREDENTIALS_JSON is not set or invalid.")
+                logger.error("   Check Railway environment variables.")
             else:
                 logger.error(f"❌ Firestore client initialization failed: {type(e).__name__}: {error_msg[:200]}")
             self.db = None
+            self._initialized = False
     
     async def get_document(self, collection: str, document_id: str) -> Optional[Dict[str, Any]]:
         """Get a document from Firestore."""
+        self._ensure_initialized()
         if not self.db:
             return None
         try:
@@ -62,8 +81,11 @@ class FirestoreClient:
         merge: bool = False
     ) -> bool:
         """Set a document in Firestore."""
+        self._ensure_initialized()
         if not self.db:
-            print(f"ERROR: Firestore client not initialized. Cannot set document {collection}/{document_id}")
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"ERROR: Firestore client not initialized. Cannot set document {collection}/{document_id}")
             return False
         try:
             import asyncio
@@ -96,6 +118,7 @@ class FirestoreClient:
         data: Dict[str, Any]
     ) -> bool:
         """Update a document in Firestore."""
+        self._ensure_initialized()
         if not self.db:
             return False
         try:
@@ -114,6 +137,7 @@ class FirestoreClient:
         limit: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """Query a collection in Firestore."""
+        self._ensure_initialized()
         if not self.db:
             return []
         try:
@@ -145,6 +169,7 @@ class FirestoreClient:
     
     async def delete_document(self, collection: str, document_id: str) -> bool:
         """Delete a document from Firestore."""
+        self._ensure_initialized()
         if not self.db:
             return False
         try:
