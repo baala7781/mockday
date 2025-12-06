@@ -5,6 +5,7 @@ from firebase_admin import auth as firebase_auth
 from firebase_admin import credentials, initialize_app, get_app
 import firebase_admin
 import os
+import json
 from typing import Optional
 from shared.config.settings import settings
 
@@ -23,10 +24,30 @@ def initialize_firebase():
             pass
         
         cred = None
-        if settings.GOOGLE_APPLICATION_CREDENTIALS:
-            cred = credentials.ApplicationDefault()
-        elif os.path.exists(settings.FIREBASE_CREDENTIALS_PATH):
+        
+        # Option 1: JSON content in environment variable (for Railway/cloud deployments)
+        json_creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+        if json_creds:
+            try:
+                creds_dict = json.loads(json_creds)
+                cred = credentials.Certificate(creds_dict)
+                print("Firebase: Using credentials from GOOGLE_APPLICATION_CREDENTIALS_JSON")
+            except json.JSONDecodeError as e:
+                print(f"Warning: Invalid JSON in GOOGLE_APPLICATION_CREDENTIALS_JSON: {e}")
+        
+        # Option 2: File path in environment variable
+        if not cred and settings.GOOGLE_APPLICATION_CREDENTIALS:
+            if os.path.exists(settings.GOOGLE_APPLICATION_CREDENTIALS):
+                cred = credentials.Certificate(settings.GOOGLE_APPLICATION_CREDENTIALS)
+                print("Firebase: Using credentials from GOOGLE_APPLICATION_CREDENTIALS file")
+            else:
+                cred = credentials.ApplicationDefault()
+                print("Firebase: Using Application Default Credentials")
+        
+        # Option 3: Default file path
+        if not cred and os.path.exists(settings.FIREBASE_CREDENTIALS_PATH):
             cred = credentials.Certificate(settings.FIREBASE_CREDENTIALS_PATH)
+            print("Firebase: Using credentials from FIREBASE_CREDENTIALS_PATH")
         
         options = {}
         if settings.FIREBASE_STORAGE_BUCKET:
@@ -34,6 +55,7 @@ def initialize_firebase():
         
         if cred:
             initialize_app(cred, options or None)
+            print("Firebase: Initialization successful!")
         else:
             if options:
                 initialize_app(options=options)
