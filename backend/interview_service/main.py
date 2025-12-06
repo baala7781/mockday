@@ -7,6 +7,23 @@ import logging
 import asyncio
 import time
 from typing import Dict, Optional, Any
+import re
+
+# Security helper: Sanitize error messages to prevent secret exposure
+def sanitize_error_message(error: Exception) -> str:
+    """Remove sensitive information from error messages."""
+    msg = str(error)
+    # Remove potential credential data
+    sensitive_patterns = [
+        r'private_key["\']?\s*[:=]\s*["\'][^"\']+["\']',
+        r'client_email["\']?\s*[:=]\s*["\'][^"\']+["\']',
+        r'project_id["\']?\s*[:=]\s*["\'][^"\']+["\']',
+        r'-----BEGIN.*?-----END[^-]+-----',
+        r'File\s+\{[^}]+\}',
+    ]
+    for pattern in sensitive_patterns:
+        msg = re.sub(pattern, '[REDACTED]', msg, flags=re.IGNORECASE | re.DOTALL)
+    return msg
 
 from shared.config.settings import settings
 from shared.auth.firebase_auth import get_current_user
@@ -224,8 +241,8 @@ async def get_profile(user: dict = Depends(get_current_user)):
         
         return profile
     except Exception as e:
-        logger.error(f"Error getting profile: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch profile: {e}")
+        logger.error(f"Error getting profile: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch profile")
 
 
 @app.put("/api/profile")
@@ -263,7 +280,8 @@ async def update_profile(
         raise
     except Exception as e:
         logger.error(f"Error updating profile: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to update profile: {e}")
+        logger.error(f"Error updating profile: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to update profile")
 
 
 # ============================================================================
@@ -302,7 +320,8 @@ async def list_resumes(user: dict = Depends(get_current_user)):
         return resumes
     except Exception as e:
         logger.error(f"Error listing resumes: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to list resumes: {e}")
+        logger.error(f"Error listing resumes: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to list resumes")
 
 
 # ============================================================================
@@ -356,7 +375,8 @@ async def list_reports(user: dict = Depends(get_current_user)):
         return formatted_reports
     except Exception as e:
         logger.error(f"Error listing reports: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to list reports: {e}")
+        logger.error(f"Error listing reports: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to list reports")
 
 
 @app.post("/api/resumes/upload")
