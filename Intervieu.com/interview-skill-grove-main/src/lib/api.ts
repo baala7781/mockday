@@ -27,14 +27,34 @@ const getApiBaseUrl = () => {
   }
   const apiUrl = import.meta.env.VITE_API_URL;
   if (apiUrl) {
-    return apiUrl.endsWith('/api') ? apiUrl : `${apiUrl}/api`;
+    // Ensure it's an absolute URL
+    let url = apiUrl.trim();
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = `https://${url}`;
+    }
+    // Remove trailing slash and add /api if not present
+    url = url.replace(/\/$/, '');
+    if (!url.endsWith('/api')) {
+      url = `${url}/api`;
+    }
+    return url;
   }
   return '/api';
 };
 
 async function authedFetch(path: string, token: string, init?: RequestInit) {
   const baseUrl = getApiBaseUrl();
-  const fullPath = path.startsWith('/') ? `${baseUrl}${path}` : `${baseUrl}/${path}`;
+  // Ensure path starts with / and remove /api prefix if present (baseUrl already has /api)
+  let cleanPath = path.startsWith('/') ? path : `/${path}`;
+  // Remove /api prefix if path already has it (avoid double /api/api)
+  if (cleanPath.startsWith('/api')) {
+    cleanPath = cleanPath.replace(/^\/api/, '');
+  }
+  // Ensure cleanPath starts with /
+  if (!cleanPath.startsWith('/')) {
+    cleanPath = `/${cleanPath}`;
+  }
+  const fullPath = `${baseUrl}${cleanPath}`;
   
   const res = await fetch(fullPath, {
     ...init,
@@ -53,24 +73,24 @@ async function authedFetch(path: string, token: string, init?: RequestInit) {
 }
 
 export async function getProfile(token: string): Promise<UserProfile> {
-  const res = await authedFetch('/api/profile', token)
+  const res = await authedFetch('/profile', token)
   return res.json()
 }
 
 export async function updateProfile(token: string, data: Partial<UserProfile>): Promise<void> {
-  await authedFetch('/api/profile', token, {
+  await authedFetch('/profile', token, {
     method: 'PUT',
     body: JSON.stringify(data),
   })
 }
 
 export async function getResumes(token: string): Promise<ResumeMeta[]> {
-  const res = await authedFetch('/api/resumes', token)
+  const res = await authedFetch('/resumes', token)
   return res.json()
 }
 
 export async function addResume(token: string, meta: ResumeMeta): Promise<void> {
-  await authedFetch('/api/resumes', token, {
+  await authedFetch('/resumes', token, {
     method: 'POST',
     body: JSON.stringify(meta),
   })
