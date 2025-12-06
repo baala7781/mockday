@@ -27,20 +27,25 @@ def initialize_firebase():
         
         # Option 1: JSON content in environment variable (for Railway/cloud deployments)
         json_creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+        project_id = None
         if json_creds:
             try:
                 creds_dict = json.loads(json_creds)
-                cred = credentials.Certificate(creds_dict)
-                # Extract project_id from credentials for options
+                # Extract project_id BEFORE creating credential
                 project_id = creds_dict.get("project_id")
+                # Create credential from dict (not file path)
+                cred = credentials.Certificate(creds_dict)
                 print(f"Firebase: Using credentials from GOOGLE_APPLICATION_CREDENTIALS_JSON (project: {project_id})")
             except json.JSONDecodeError as e:
                 print(f"Warning: Invalid JSON in GOOGLE_APPLICATION_CREDENTIALS_JSON: {e}")
-                creds_dict = None
+                cred = None
+                project_id = None
+            except Exception as e:
+                print(f"Warning: Failed to create Firebase credentials from JSON: {e}")
+                cred = None
                 project_id = None
         else:
-            creds_dict = None
-            project_id = None
+            cred = None
         
         # Option 2: File path in environment variable
         if not cred and settings.GOOGLE_APPLICATION_CREDENTIALS:
@@ -51,37 +56,45 @@ def initialize_firebase():
                 cred = credentials.ApplicationDefault()
                 print("Firebase: Using Application Default Credentials")
         
-        # Option 3: Default file path
+        # Option 3: Default file path (only if no JSON creds)
         if not cred and os.path.exists(settings.FIREBASE_CREDENTIALS_PATH):
-            cred = credentials.Certificate(settings.FIREBASE_CREDENTIALS_PATH)
-            print("Firebase: Using credentials from FIREBASE_CREDENTIALS_PATH")
-            # Try to extract project_id from file
             try:
+                cred = credentials.Certificate(settings.FIREBASE_CREDENTIALS_PATH)
+                print("Firebase: Using credentials from FIREBASE_CREDENTIALS_PATH")
+                # Try to extract project_id from file
                 with open(settings.FIREBASE_CREDENTIALS_PATH, 'r') as f:
                     file_creds = json.load(f)
                     project_id = file_creds.get("project_id")
-            except:
-                project_id = None
+            except Exception as e:
+                print(f"Warning: Failed to load credentials from file: {e}")
+                cred = None
         
         options = {}
-        # Set project_id explicitly (required for Firebase Auth)
+        # Set project_id explicitly (REQUIRED for Firebase Auth)
         if project_id:
             options["projectId"] = project_id
+            print(f"Firebase: Setting projectId to {project_id}")
         elif settings.FIREBASE_STORAGE_BUCKET:
             # Extract project_id from storage bucket if available
             bucket_parts = settings.FIREBASE_STORAGE_BUCKET.split('.')
             if len(bucket_parts) > 0:
                 options["projectId"] = bucket_parts[0]
+                print(f"Firebase: Extracted projectId from storage bucket: {options['projectId']}")
         
         if settings.FIREBASE_STORAGE_BUCKET:
             options["storageBucket"] = settings.FIREBASE_STORAGE_BUCKET
         
         if cred:
-            initialize_app(cred, options or None)
+            # CRITICAL: Must pass options with projectId
+            if not options.get("projectId") and project_id:
+                options["projectId"] = project_id
+            initialize_app(cred, options if options else None)
             print("Firebase: Initialization successful!")
         else:
-            if options:
+            # Try to initialize with just options (for Application Default Credentials)
+            if options.get("projectId"):
                 initialize_app(options=options)
+                print("Firebase: Initialized with Application Default Credentials")
             else:
                 print("Warning: Firebase credentials not found. Some features may not work.")
     except Exception as e:
@@ -125,9 +138,22 @@ async def verify_token(
             detail="Token has expired"
         )
     except Exception as e:
+        # NEVER expose sensitive error details in production
+        error_msg = str(e)
+        # Sanitize error message - remove any credential data
+        if "File" in error_msg and "service_account" in error_msg:
+            error_msg = "Authentication service configuration error"
+        elif "project_id" in error_msg.lower() or "private_key" in error_msg.lower():
+            error_msg = "Authentication service configuration error"
+        
+        # Log full error server-side only (never send to client)
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Firebase auth error: {e}", exc_info=True)
+        
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Authentication failed: {str(e)}"
+            detail="Authentication failed. Please check your credentials."
         )
 
 
