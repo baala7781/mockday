@@ -89,8 +89,20 @@ const getApiUrl = () => {
   // In production, use the actual backend URL from environment
   const apiUrl = import.meta.env.VITE_API_URL;
   if (apiUrl) {
-    // Ensure /api prefix for production URLs
-    return apiUrl.endsWith('/api') ? apiUrl : `${apiUrl}/api`;
+    // Ensure it's an absolute URL
+    let url = apiUrl.trim();
+    // Remove any leading/trailing slashes
+    url = url.replace(/^\/+|\/+$/g, '');
+    // Add https:// if not present
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = `https://${url}`;
+    }
+    // Remove trailing slash and add /api if not present
+    url = url.replace(/\/$/, '');
+    if (!url.endsWith('/api')) {
+      url = `${url}/api`;
+    }
+    return url;
   }
   // Fallback (should not happen in production)
   return '/api';
@@ -113,8 +125,16 @@ const getWebSocketUrl = (interviewId: string) => {
   // Fallback: construct from API URL
   const apiUrl = import.meta.env.VITE_API_URL || '';
   if (apiUrl) {
+    // Ensure it's an absolute URL
+    let url = apiUrl.trim();
+    // Remove any leading/trailing slashes
+    url = url.replace(/^\/+|\/+$/g, '');
+    // Add https:// if not present
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = `https://${url}`;
+    }
     // Convert https:// to wss:// or http:// to ws://
-    const wsBase = apiUrl.replace('https://', 'wss://').replace('http://', 'ws://');
+    const wsBase = url.replace('https://', 'wss://').replace('http://', 'ws://');
     return `${wsBase}/ws/interview/${interviewId}`;
   }
   
@@ -347,10 +367,8 @@ export const interviewService = {
       }
 
       const apiUrl = getApiUrl();
-      // Ensure we have the correct path
-      const url = apiUrl.endsWith('/api') 
-        ? `${apiUrl}/interviews` 
-        : `${apiUrl}/api/interviews`;
+      // getApiUrl() already returns URL with /api suffix, so just append the endpoint
+      const url = `${apiUrl}/interviews`;
       
       console.log('Fetching interviews from:', url);
       
