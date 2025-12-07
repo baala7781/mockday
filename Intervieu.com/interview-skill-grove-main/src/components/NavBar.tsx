@@ -56,7 +56,7 @@ const NavBar: React.FC = () => {
           <div className="h-9 w-9 rounded-full bg-primary flex items-center justify-center">
             <span className="text-white font-bold text-lg">AI</span>
           </div>
-          <span className="font-semibold text-xl">Intervieu</span>
+          <span className="font-semibold text-xl">MockDay</span>
         </Link>
 
         {/* Desktop Menu */}

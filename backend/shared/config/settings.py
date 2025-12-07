@@ -25,13 +25,13 @@ class Settings(BaseSettings):
     GOOGLE_APPLICATION_CREDENTIALS: str = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
     FIREBASE_STORAGE_BUCKET: str = os.getenv(
         "FIREBASE_STORAGE_BUCKET",
-        "intervieu-7a3bb.appspot.com"
+        "intervieu-7a3bb.appspot.com"  # Legacy Firebase project ID (keep as-is)
     )
     
     # Database
     POSTGRES_URL: str = os.getenv(
         "POSTGRES_URL",
-        "postgresql+asyncpg://user:password@localhost:5432/intervieu"
+        "postgresql+asyncpg://user:password@localhost:5432/mockday"  # Updated to mockday
     )
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     

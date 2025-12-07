@@ -70,7 +70,7 @@ const LoginPage: React.FC = () => {
             <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center">
               <span className="text-primary-foreground font-bold text-lg">I</span>
             </div>
-            <span className="font-semibold text-2xl text-foreground">Intervieu</span>
+            <span className="font-semibold text-2xl text-foreground">MockDay</span>
           </Link>
           <h1 className="text-3xl font-semibold text-foreground mb-2">Welcome Back</h1>
           <p className="text-muted-foreground">Sign in to continue to your account</p>

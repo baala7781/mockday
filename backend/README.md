@@ -21,7 +21,7 @@ cd backend
 Or manually:
 ```bash
 cd backend
-source intervieu/bin/activate
+source venv/bin/activate  # or source intervieu/bin/activate for legacy
 export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 uvicorn interview_service.main:app --host 0.0.0.0 --port 8002 --reload
 ```
@@ -96,8 +96,8 @@ FRONTEND_URL=http://localhost:5174
 
 ```bash
 cd backend
-source intervieu/bin/activate
-pip install -r requirements-fastapi.txt
+source venv/bin/activate  # or source intervieu/bin/activate for legacy
+pip install -r requirements.txt
 ```
 
 ## API Endpoints
@@ -262,7 +262,7 @@ redis-server
 
 ```bash
 cd backend
-source intervieu/bin/activate
+source venv/bin/activate  # or source intervieu/bin/activate for legacy
 python -m pytest tests/
 ```
 

@@ -24,7 +24,7 @@ if [ -d "venv" ]; then
     echo "📦 Activating virtual environment..."
     source venv/bin/activate
 elif [ -d "intervieu" ]; then
-    echo "📦 Activating virtual environment (intervieu)..."
+    echo "📦 Activating virtual environment (legacy intervieu)..."
     source intervieu/bin/activate
 else
     echo "⚠️  No virtual environment found. Creating one..."
