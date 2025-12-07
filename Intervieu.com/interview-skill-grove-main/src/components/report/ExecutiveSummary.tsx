@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Clock, CheckCircle, Target } from 'lucide-react';
 
 interface ExecutiveSummaryProps {
-  overallScore: number;
+  overallScore: number | null;
   recommendation: string;
   role: string;
   duration: number; // in minutes
@@ -31,7 +31,9 @@ const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
   // Format recommendation
   const getRecommendationBadge = () => {
     const rec = recommendation.toLowerCase();
-    if (rec === 'hire' || rec.includes('strong')) {
+    if (rec === 'no_assessment' || overallScore === null || overallScore === undefined) {
+      return { label: 'NO ASSESSMENT', variant: 'secondary' as const, color: 'bg-gray-500' };
+    } else if (rec === 'hire' || rec.includes('strong')) {
       return { label: 'STRONG HIRE', variant: 'default' as const, color: 'bg-green-500' };
     } else if (rec === 'maybe' || rec.includes('consider')) {
       return { label: 'CONSIDER', variant: 'secondary' as const, color: 'bg-yellow-500' };
@@ -42,8 +44,12 @@ const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
 
   const badge = getRecommendationBadge();
 
-  // Calculate role match (based on score)
-  const roleMatch = Math.min(100, Math.round(overallScore * 1.15));
+  // Calculate role match (based on score) - only if score exists
+  const roleMatch = overallScore !== null && overallScore !== undefined 
+    ? Math.min(100, Math.round(overallScore * 1.15))
+    : null;
+  
+  const hasScore = overallScore !== null && overallScore !== undefined;
 
   // Format date
   const formattedDate = new Date(createdAt).toLocaleDateString('en-US', {
@@ -58,33 +64,42 @@ const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
         <div className="flex flex-col lg:flex-row items-start lg:items-center gap-8">
           {/* Score Circle */}
           <div className="relative flex-shrink-0">
-            <svg className="w-40 h-40 lg:w-48 lg:h-48 transform -rotate-90">
-              <circle
-                className="text-muted"
-                strokeWidth="10"
-                stroke="currentColor"
-                fill="transparent"
-                r="60"
-                cx="80"
-                cy="80"
-              />
-              <circle
-                className={`${overallScore >= 80 ? 'text-green-500' : overallScore >= 60 ? 'text-primary' : 'text-yellow-500'} transition-all duration-1000`}
-                strokeWidth="10"
-                strokeLinecap="round"
-                stroke="currentColor"
-                fill="transparent"
-                r="60"
-                cx="80"
-                cy="80"
-                strokeDasharray={377}
-                strokeDashoffset={377 - (377 * overallScore) / 100}
-              />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-4xl lg:text-5xl font-bold">{overallScore}</span>
-              <span className="text-sm text-muted-foreground">out of 100</span>
-            </div>
+            {hasScore ? (
+              <>
+                <svg className="w-40 h-40 lg:w-48 lg:h-48 transform -rotate-90">
+                  <circle
+                    className="text-muted"
+                    strokeWidth="10"
+                    stroke="currentColor"
+                    fill="transparent"
+                    r="60"
+                    cx="80"
+                    cy="80"
+                  />
+                  <circle
+                    className={`${overallScore >= 80 ? 'text-green-500' : overallScore >= 60 ? 'text-primary' : 'text-yellow-500'} transition-all duration-1000`}
+                    strokeWidth="10"
+                    strokeLinecap="round"
+                    stroke="currentColor"
+                    fill="transparent"
+                    r="60"
+                    cx="80"
+                    cy="80"
+                    strokeDasharray={377}
+                    strokeDashoffset={377 - (377 * overallScore) / 100}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-4xl lg:text-5xl font-bold">{overallScore}</span>
+                  <span className="text-sm text-muted-foreground">out of 100</span>
+                </div>
+              </>
+            ) : (
+              <div className="w-40 h-40 lg:w-48 lg:h-48 rounded-full bg-muted flex flex-col items-center justify-center border-4 border-dashed border-muted-foreground/30">
+                <span className="text-2xl lg:text-3xl font-bold text-muted-foreground">N/A</span>
+                <span className="text-xs text-muted-foreground mt-1">No Score</span>
+              </div>
+            )}
           </div>
 
           {/* Summary Details */}
@@ -107,7 +122,7 @@ const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
                 <Target className="w-5 h-5 text-primary" />
                 <div>
                   <p className="text-sm text-muted-foreground">Role Match</p>
-                  <p className="text-lg font-semibold">{roleMatch}%</p>
+                  <p className="text-lg font-semibold">{roleMatch !== null ? `${roleMatch}%` : 'N/A'}</p>
                 </div>
               </div>
 

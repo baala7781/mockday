@@ -27,7 +27,7 @@ interface CodingPerformance {
 }
 
 interface ReportData {
-  overall_score: number;
+  overall_score: number | null;
   section_scores: {
     technical?: number;
     communication?: number;
@@ -177,7 +177,7 @@ const Report: React.FC = () => {
     );
   }
 
-  const overallScore = reportData.overall_score || 0;
+  const overallScore = reportData.overall_score ?? null;
 
   return (
     <div className="page-transition">

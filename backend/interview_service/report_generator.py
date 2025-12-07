@@ -230,7 +230,78 @@ async def generate_interview_report(
     try:
         logger.info(f"📊 Generating report for interview: {interview_id}")
         
-        # Build transcript
+        # Determine completion status FIRST
+        questions_answered = len(state.questions_asked)
+        expected_questions = state.total_questions or 10
+        
+        # CRITICAL: If no questions answered, return a "no assessment" report
+        if questions_answered == 0:
+            logger.warning(f"⚠️ No questions answered for interview {interview_id}. Generating 'no assessment' report.")
+            report_data = {
+                "overall_score": None,  # No score when no questions answered
+                "section_scores": {},
+                "skill_scores": {},
+                "strengths": [],
+                "weaknesses": ["No interview questions were answered. Cannot provide assessment."],
+                "detailed_feedback": "This interview was started but no questions were answered. A comprehensive assessment cannot be provided without interview responses. Please complete an interview to receive a detailed performance report.",
+                "recommendation": "no_assessment",
+                "improvement_suggestions": [
+                    "Complete a full interview to receive an accurate assessment",
+                    "Answer all interview questions to get detailed feedback on your performance"
+                ],
+                "interview_id": interview_id,
+                "role": state.role.value,
+                "total_questions": expected_questions,
+                "questions_answered": 0,
+                "is_complete": False,
+                "completion_percentage": 0,
+                "completion_warning": "No questions were answered. This report contains no assessment data.",
+                "coding_performance": {
+                    "total_coding_questions": 0,
+                    "coding_questions_solved": 0,
+                    "success_rate": 0,
+                    "by_difficulty": {
+                        "easy": {"attempted": 0, "solved": 0},
+                        "medium": {"attempted": 0, "solved": 0},
+                        "hard": {"attempted": 0, "solved": 0}
+                    }
+                },
+                "questions": [],
+                "answers": [],
+                "interview_duration": (state.completed_at - state.started_at).total_seconds() / 60 if (state.completed_at and state.started_at) else 0,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            
+            # Store report in Firestore
+            report_id = str(uuid.uuid4())
+            report_doc = {
+                "report_id": report_id,
+                "interview_id": interview_id,
+                "user_id": state.user_id,
+                "role": state.role.value,
+                "report_data": report_data,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "overall_score": None  # No score
+            }
+            
+            success = await firestore_client.set_document(
+                "reports",
+                report_id,
+                report_doc
+            )
+            
+            if not success:
+                logger.error(f"Failed to save 'no assessment' report to Firestore for interview: {interview_id}")
+                return None
+            
+            # Update interview state with report_id
+            from interview_service.interview_state import update_interview_state
+            await update_interview_state(interview_id, {"report_id": report_id})
+            
+            logger.info(f"✅ 'No assessment' report generated and stored: {report_id} for interview: {interview_id}")
+            return report_data
+        
+        # Build transcript (only if questions were answered)
         transcript = build_interview_transcript(state)
         questions, answers = extract_questions_and_answers(state)
         
@@ -239,9 +310,6 @@ async def generate_interview_report(
         overall_score = calculate_overall_score(state)
         coding_performance = calculate_coding_performance(state)
         
-        # Determine completion status
-        questions_answered = len(state.questions_asked)
-        expected_questions = state.total_questions or 10
         is_complete = state.status.value == "completed" and questions_answered >= expected_questions * 0.8
         
         logger.info(f"📊 Calculated metrics - Overall: {overall_score:.2f}, Skills: {len(skill_scores)}, Coding: {coding_performance['total_coding_questions']} questions")
