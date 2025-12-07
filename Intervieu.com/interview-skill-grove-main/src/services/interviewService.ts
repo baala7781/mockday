@@ -370,8 +370,6 @@ export const interviewService = {
       // getApiUrl() already returns URL with /api suffix, so just append the endpoint
       const url = `${apiUrl}/interviews`;
       
-      console.log('Fetching interviews from:', url);
-      
       const response = await fetch(url, {
         method: 'GET',
         headers: {

@@ -98,9 +98,9 @@ export function useInterviewWebSocket(
 
   const wsUrl = interviewService.getWebSocketUrl(interviewId);
   
-  // Log URL changes to detect if URL is changing mid-interview
+  // URL changes tracked (removed debug log)
   useEffect(() => {
-    console.log('[WS URL] WebSocket URL for interview:', { interviewId, wsUrl });
+    // WebSocket URL for interview tracked
   }, [interviewId, wsUrl]);
 
   // Fetch Deepgram API key: Check env var first (local dev), then backend (production)
@@ -109,7 +109,6 @@ export function useInterviewWebSocket(
       // Check for local development API key first
       const localApiKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
       if (localApiKey) {
-        console.log('✓ Using Deepgram API key from environment (local dev)');
         setDeepgramApiKey(localApiKey);
         return;
       }
@@ -117,7 +116,6 @@ export function useInterviewWebSocket(
       // Fall back to backend API (production)
       interviewService.getDeepgramToken(interviewId)
         .then(response => {
-          console.log('✓ Received Deepgram API key from backend');
           setDeepgramApiKey(response.api_key);
         })
         .catch(err => {
@@ -171,13 +169,11 @@ export function useInterviewWebSocket(
   } = useAudioPlayer({
     onPlay: () => {
       // Stop recording when audio starts playing to prevent echo
-      console.log('🎵 Audio playback started - stopping mic to prevent echo');
       if (isRecording) {
         stopRecording();
       }
     },
     onEnded: () => {
-      console.log('🎵 Audio playback ended - mic ready for manual start');
       // Don't auto-start - user will click "Start Answering" button
     },
     volume: 1,
@@ -199,14 +195,9 @@ export function useInterviewWebSocket(
     url: wsUrl,
     onMessage: handleWebSocketMessage,
     onOpen: () => {
-      console.log('✓ WebSocket connected');
+      // WebSocket connected
     },
     onClose: () => {
-      // CRITICAL: Log when onClose is triggered
-      const onCloseStackTrace = new Error().stack;
-      console.log('✗ [WS onClose] WebSocket disconnected - Stack trace:', onCloseStackTrace);
-      console.log('✗ [WS onClose] Stopping mic');
-      
       stopRecording();
       
       // NOTE: We do NOT call disconnect() here - onClose is just a notification
@@ -223,16 +214,13 @@ export function useInterviewWebSocket(
 
   // Handle WebSocket messages
   function handleWebSocketMessage(message: WebSocketMessage) {
-    console.log('📨 WebSocket message:', message.type);
 
     switch (message.type) {
       case 'connected':
-        console.log('✓ Connected - waiting for question');
         break;
 
       case 'question':
         if (message.question) {
-          console.log('❓ Question received:', message.question.question_id);
           setCurrentQuestion(message.question);
           // CRITICAL: Clear processing state - next question has arrived
           setIsProcessingAnswer(false);
@@ -259,7 +247,6 @@ export function useInterviewWebSocket(
           if (message.audio.trim().length === 0) {
             console.warn('⚠️ Received empty audio data, skipping playback');
           } else {
-            console.log('🎵 TTS audio received', { audioLength: message.audio.length });
             playAudio(message.audio, message.format || 'mp3').catch((err) => {
               console.error('❌ Error playing audio:', err);
             });
@@ -273,7 +260,6 @@ export function useInterviewWebSocket(
           const transcriptText = message.text || '';
           setTranscript(transcriptText);
           transcriptRef.current = transcriptText;
-          console.log('📝 Transcript received:', transcriptText.substring(0, 50) + (transcriptText.length > 50 ? '...' : ''));
           onTranscript?.(transcriptText, message.is_final || false);
         }
         break;
@@ -288,7 +274,6 @@ export function useInterviewWebSocket(
         break;
 
       case 'completed':
-        console.log('[WS Message] Interview completed - stopping recording but keeping WebSocket alive');
         setIsInterviewCompleted(true);
         setIsProcessingAnswer(false); // Clear processing state
         stopRecording();
@@ -312,23 +297,14 @@ export function useInterviewWebSocket(
             percentage: message.interview_state.progress?.percentage || 0,
           });
           // Restore interview state after page refresh
-          console.log('📋 Interview state restored:', {
-            status: message.interview_state.status,
-            flow_state: message.interview_state.flow_state,
-            total_questions: message.interview_state.total_questions,
-          });
         }
         break;
 
       case 'flow_state':
         // Handle flow state changes (e.g., after page refresh)
         if (message.state) {
-          console.log('🔄 Flow state received:', message.state);
           // If flow_state is 'user_speaking' and no current question, user should be ready to answer
           // But don't auto-start recording - user must click "Start Answering"
-          if (message.state === 'user_speaking' && !currentQuestion) {
-            console.log('💡 Ready for user to speak - waiting for manual start');
-          }
         }
         break;
 
@@ -341,7 +317,6 @@ export function useInterviewWebSocket(
   // Simplified startRecording using direct Deepgram STT
   const startRecording = useCallback(async () => {
     if (!enableAudioRecording) {
-      console.log('Audio recording is disabled');
       return;
     }
 
@@ -352,7 +327,6 @@ export function useInterviewWebSocket(
     }
 
     if (isRecording) {
-      console.log('Already recording');
       return;
     }
 
@@ -369,7 +343,6 @@ export function useInterviewWebSocket(
     }
 
     try {
-      console.log('🎤 Starting direct Deepgram STT...');
       
       // Clear previous transcript
       setTranscript('');
@@ -390,11 +363,8 @@ export function useInterviewWebSocket(
         // Send ping every 10 seconds to keep WebSocket alive
         if (isConnected && sendPing) {
           sendPing();
-          console.debug(`💓 Sent WebSocket ping (activity: ${Math.round(timeSinceActivity / 1000)}s ago)`);
         }
       }, 10000); // Ping every 10 seconds
-      
-      console.log('✓ Direct Deepgram STT started');
     } catch (error: any) {
       console.error('✗ Error starting recording:', error);
       onError?.(error.message || 'Failed to start recording');
@@ -403,14 +373,9 @@ export function useInterviewWebSocket(
 
   // Simplified stopRecording using direct Deepgram STT
   const stopRecording = useCallback(() => {
-    console.log('⏸️ stopRecording called in useInterviewWebSocket');
-
     if (!isRecording) {
-      console.log('Not recording - skipping stop');
       return;
     }
-
-    console.log('⏸️ Stopping direct Deepgram STT...');
     
     // Stop ping interval
     if (pingIntervalRef.current) {
@@ -425,10 +390,6 @@ export function useInterviewWebSocket(
     const currentTranscript = deepgramTranscript || transcriptRef.current || transcript;
     
     if (isConnected && currentTranscript) {
-      console.log('📤 Submitting transcript to backend...', {
-        transcriptLength: currentTranscript.length,
-        preview: currentTranscript.substring(0, 100)
-      });
       
       // Set processing state to disable "Start Answering" button until next question arrives
       setIsProcessingAnswer(true);
@@ -449,7 +410,6 @@ export function useInterviewWebSocket(
       onError?.('No audio was captured. Please try again.');
     }
 
-    console.log('✓ Direct Deepgram STT stopped and transcript submitted');
   }, [interviewId, isRecording, deepgramTranscript, transcript, stopDeepgramRecording, isConnected, sendMessage, onError]);
 
   // Stop mic when interview completes

@@ -93,7 +93,6 @@ const Dashboard: React.FC = () => {
       const now = Date.now();
       const cached = getCachedData();
       if (cached && cached.data && (now - cached.timestamp) < CACHE_DURATION) {
-        console.log('Using cached interviews from sessionStorage');
         setInterviews(cached.data);
         calculateStats(cached.data);
         setLoading(false);
@@ -115,7 +114,6 @@ const Dashboard: React.FC = () => {
         // If we have stale cache, use it as fallback
         const staleCache = getCachedData();
         if (staleCache && staleCache.data) {
-          console.log('Using stale cache as fallback');
           setInterviews(staleCache.data);
           calculateStats(staleCache.data);
         }
