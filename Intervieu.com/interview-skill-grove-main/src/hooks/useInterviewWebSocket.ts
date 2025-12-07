@@ -103,9 +103,18 @@ export function useInterviewWebSocket(
     console.log('[WS URL] WebSocket URL for interview:', { interviewId, wsUrl });
   }, [interviewId, wsUrl]);
 
-  // Fetch Deepgram API key from backend when interview starts
+  // Fetch Deepgram API key: Check env var first (local dev), then backend (production)
   useEffect(() => {
     if (enableAudioRecording && !deepgramApiKey) {
+      // Check for local development API key first
+      const localApiKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
+      if (localApiKey) {
+        console.log('✓ Using Deepgram API key from environment (local dev)');
+        setDeepgramApiKey(localApiKey);
+        return;
+      }
+
+      // Fall back to backend API (production)
       interviewService.getDeepgramToken(interviewId)
         .then(response => {
           console.log('✓ Received Deepgram API key from backend');
