@@ -122,11 +122,7 @@ const InterviewInterface: React.FC<InterviewInterfaceProps> = ({ interviewId }) 
     },
     onEvaluation: (evalData) => {
       // Don't show evaluation to candidate - evaluation is for backend/internal use only
-      // Just log it for debugging
-      console.log('✓ Answer evaluated (not shown to candidate):', {
-        score: evalData.score,
-        feedback: evalData.feedback.substring(0, 50) + '...'
-      });
+      // Answer evaluated (not shown to candidate) - score, feedback, strengths, weaknesses
     },
     // TODO: Re-enable live transcription display later
     // onTranscript: (text, isFinal) => {

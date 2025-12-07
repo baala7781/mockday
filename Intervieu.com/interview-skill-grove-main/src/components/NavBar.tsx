@@ -30,7 +30,6 @@ const NavBar: React.FC = () => {
     try {
       await signOut(auth);
       navigate('/login'); // Redirect to login page after sign out
-      console.log("User signed out successfully");
     } catch (error) {
       console.error("Failed to sign out:", error);
     }
