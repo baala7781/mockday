@@ -6,18 +6,18 @@
 
 | Current Name | Location | Should Be | Priority |
 |--------------|----------|-----------|----------|
-| `intervieu` | Firebase project, some code | `intervieu` (keep) | Low |
+| `intervieu` | Firebase project (legacy) | Keep for Firebase, but use `mockday` in code | Low |
 | `Intervieu.com` | Directory name | `frontend` or `web` | High |
 | `interview-skill-grove-main` | Subdirectory | `src` or remove | High |
-| `vite_react_shadcn_ts` | package.json name | `intervieu-frontend` | Medium |
-| `interview-skill-grove` | HTML title | `Intervieu` | Medium |
+| `vite_react_shadcn_ts` | package.json name | `mockday-frontend` | Medium |
+| `interview-skill-grove` | HTML title | `MockDay` | Medium |
 
 ### 2. **Lovable References (Template Artifacts)**
 
 | Location | Current | Should Be | Priority |
 |----------|---------|-----------|----------|
-| `index.html` | "Lovable Generated Project" | "Intervieu - AI Interview Platform" | High |
-| `index.html` | Lovable meta tags | Intervieu branding | High |
+| `index.html` | "Lovable Generated Project" | "MockDay - AI Interview Platform" | High |
+| `index.html` | Lovable meta tags | MockDay branding | High |
 | `package.json` | `lovable-tagger` (devDependency) | Remove or keep (low priority) | Low |
 | `index.html` | `@lovable_dev` Twitter | Remove or update | Medium |
 
@@ -61,12 +61,12 @@
    ```
 
 2. **Update index.html**
-   - Change title from "interview-skill-grove" to "Intervieu"
+   - Change title from "interview-skill-grove" to "MockDay"
    - Remove/replace Lovable meta tags
-   - Update description
+   - Update description to "MockDay - AI Interview Platform"
 
 3. **Update package.json**
-   - Change name from "vite_react_shadcn_ts" to "intervieu-frontend"
+   - Change name from "vite_react_shadcn_ts" to "mockday-frontend"
 
 ### Medium Priority
 
@@ -92,9 +92,10 @@
 ## 🎯 Standard Naming Convention
 
 ### Project Name
-- **Official**: `Intervieu` (capitalized)
-- **Code/URLs**: `intervieu` (lowercase)
-- **Display**: "Intervieu - AI Interview Platform"
+- **Official**: `MockDay` (capitalized)
+- **Domain**: `mockday.io`
+- **Code/URLs**: `mockday` (lowercase)
+- **Display**: "MockDay - AI Interview Platform"
 
 ### Directory Structure
 ```
@@ -107,8 +108,8 @@ interview_skill_grove/
 ```
 
 ### Package Names
-- Frontend: `intervieu-frontend`
-- Backend: `intervieu-backend` (if needed)
+- Frontend: `mockday-frontend`
+- Backend: `mockday-backend` (if needed)
 
 ---
 

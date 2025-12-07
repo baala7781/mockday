@@ -10,8 +10,9 @@ This document details all configurations across Google Cloud (Firebase), Vercel 
 
 ### Project Details
 
-- **Project ID**: `intervieu-7a3bb`
-- **Project Name**: Intervieu
+- **Project ID**: `intervieu-7a3bb` (Firebase project - legacy name, keep as is)
+- **Project Name**: MockDay (display name)
+- **Domain**: mockday.io
 - **Firebase Console**: https://console.firebase.google.com/project/intervieu-7a3bb
 
 ### Service Account
@@ -67,7 +68,7 @@ The service account needs these roles:
 
 - **Project Name**: `mockday` or `interview-skill-grove`
 - **Vercel Dashboard**: https://vercel.com/dashboard
-- **Production URL**: `https://mockdayai.vercel.app`
+- **Production URL**: `https://mockdayai.vercel.app` (or `https://mockday.io` if custom domain configured)
 
 ### Environment Variables
 

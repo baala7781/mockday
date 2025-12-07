@@ -1,6 +1,6 @@
-# 🎯 Intervieu - AI-Powered Interview Platform
+# 🎯 MockDay - AI-Powered Interview Platform
 
-Intervieu is a comprehensive AI-powered technical interview platform that conducts realistic, adaptive interviews with real-time speech-to-text, text-to-speech, and intelligent question generation.
+MockDay (mockday.io) is a comprehensive AI-powered technical interview platform that conducts realistic, adaptive interviews with real-time speech-to-text, text-to-speech, and intelligent question generation.
 
 ## 🏗️ Architecture
 
@@ -62,7 +62,7 @@ uvicorn interview_service.main:app --host 0.0.0.0 --port 8002 --reload
 ### Frontend Setup
 
 ```bash
-cd Intervieu.com/interview-skill-grove-main
+cd frontend  # (or Intervieu.com/interview-skill-grove-main if not renamed yet)
 
 # Install dependencies
 npm install
@@ -78,7 +78,7 @@ npm run dev
 ## 📁 Project Structure
 
 ```
-intervieu/
+mockday/
 ├── backend/
 │   ├── interview_service/    # Main interview API
 │   │   ├── main.py           # FastAPI app
@@ -92,7 +92,7 @@ intervieu/
 │   │   └── providers/        # Deepgram, Gemini
 │   └── requirements.txt
 │
-├── Intervieu.com/interview-skill-grove-main/
+├── frontend/  # (to be renamed from Intervieu.com/interview-skill-grove-main)
 │   ├── src/
 │   │   ├── components/       # React components
 │   │   ├── pages/            # Route pages
@@ -160,5 +160,7 @@ MIT License - see LICENSE file for details.
 
 ---
 
-Built with ❤️ by the Intervieu Team
+Built with ❤️ by the MockDay Team
+
+**Project**: mockday.io
 

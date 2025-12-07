@@ -36,13 +36,13 @@
   - Update deployment configs
 
 - [ ] **Update index.html**
-  - Change title: "interview-skill-grove" → "Intervieu"
+  - Change title: "interview-skill-grove" → "MockDay"
   - Remove Lovable meta tags
-  - Update description: "Lovable Generated Project" → "Intervieu - AI Interview Platform"
+  - Update description: "Lovable Generated Project" → "MockDay - AI Interview Platform"
   - Remove Lovable Twitter references
 
 - [ ] **Update package.json**
-  - Change name: "vite_react_shadcn_ts" → "intervieu-frontend"
+  - Change name: "vite_react_shadcn_ts" → "mockday-frontend"
   - Update description
 
 - [ ] **Rename virtual environment**
