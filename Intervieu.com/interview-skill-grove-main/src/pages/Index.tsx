@@ -110,7 +110,7 @@ const Index: React.FC = () => {
               <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
                 <span className="text-primary-foreground font-bold text-sm">I</span>
               </div>
-              <span className="font-semibold text-lg">Intervieu</span>
+              <span className="font-semibold text-lg">MockDay</span>
             </div>
             
             <div className="flex items-center gap-4 text-sm text-foreground/70">
@@ -120,7 +120,7 @@ const Index: React.FC = () => {
             </div>
             
             <p className="text-sm text-foreground/70">
-              © {new Date().getFullYear()} Intervieu. All rights reserved.
+              © {new Date().getFullYear()} MockDay. All rights reserved.
             </p>
           </div>
         </div>

@@ -44,6 +44,11 @@ MockDay (mockday.io) is a comprehensive AI-powered technical interview platform 
 ```bash
 cd backend
 
+# Option 1: Use start script (recommended)
+chmod +x start.sh
+./start.sh
+
+# Option 2: Manual setup
 # Create virtual environment
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
@@ -62,14 +67,18 @@ uvicorn interview_service.main:app --host 0.0.0.0 --port 8002 --reload
 ### Frontend Setup
 
 ```bash
-cd frontend  # (or Intervieu.com/interview-skill-grove-main if not renamed yet)
+cd Intervieu.com/interview-skill-grove-main
 
 # Install dependencies
 npm install
 
 # Copy and configure environment
 cp env-example.txt .env.local
-# Edit .env.local with your config
+# Edit .env.local with your config:
+# - VITE_API_URL=http://localhost:8002 (for local dev)
+# - VITE_WS_URL=ws://localhost:8002
+# - VITE_DEEPGRAM_API_KEY=your_key (for local dev)
+# - Firebase config
 
 # Start development server
 npm run dev
@@ -92,13 +101,18 @@ mockday/
 │   │   └── providers/        # Deepgram, Gemini
 │   └── requirements.txt
 │
-├── frontend/  # (to be renamed from Intervieu.com/interview-skill-grove-main)
+├── Intervieu.com/interview-skill-grove-main/  # Frontend (to be renamed to frontend/)
 │   ├── src/
 │   │   ├── components/       # React components
 │   │   ├── pages/            # Route pages
 │   │   ├── hooks/            # Custom hooks
 │   │   └── services/         # API services
-│   └── package.json
+│   ├── package.json
+│   └── .env.local            # Local environment (gitignored)
+│
+├── backend/
+│   ├── start.sh              # Local dev start script
+│   └── ...
 │
 └── DEPLOYMENT_STRATEGY.md
 ```
@@ -117,11 +131,12 @@ mockday/
 
 ### Frontend
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `VITE_API_URL` | Backend API URL | ✅ |
-| `VITE_FIREBASE_*` | Firebase config | ✅ |
-| `VITE_DEEPGRAM_API_KEY` | Deepgram key for browser STT | ✅ |
+| Variable | Description | Required | Notes |
+|----------|-------------|----------|-------|
+| `VITE_API_URL` | Backend API URL | ✅ | `http://localhost:8002` for local |
+| `VITE_WS_URL` | WebSocket URL | ✅ | `ws://localhost:8002` for local |
+| `VITE_FIREBASE_*` | Firebase config | ✅ | Get from Firebase Console |
+| `VITE_DEEPGRAM_API_KEY` | Deepgram key for browser STT | ⚠️ | Only for local dev (optional) |
 
 ## 🚢 Deployment
 
@@ -152,6 +167,10 @@ pytest tests/
 # Frontend tests
 cd Intervieu.com/interview-skill-grove-main
 npm test
+
+# Note: For local development, use:
+# - Backend: ./backend/start.sh
+# - Frontend: npm run dev (in frontend directory)
 ```
 
 ## 📄 License

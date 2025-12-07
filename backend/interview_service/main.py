@@ -74,7 +74,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Intervieu Interview Service",
+    title="MockDay Interview Service",
     description="Real-time adaptive interview service with WebSocket support",
     version="1.0.0",
     lifespan=lifespan,
@@ -197,7 +197,7 @@ websocket_handler = InterviewWebSocketHandler(manager)
 async def root():
     """Root endpoint."""
     logger.info("Root endpoint called")
-    return {"message": "Intervieu API", "status": "running"}
+    return {"message": "MockDay API", "status": "running"}
 
 @app.get("/health")
 async def health_check():

@@ -1,4 +1,4 @@
-# Intervieu Backend - Production Dockerfile
+# MockDay Backend - Production Dockerfile
 FROM python:3.12-slim
 
 # Set working directory

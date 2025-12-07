@@ -43,7 +43,7 @@ const NotificationsPage: React.FC = () => {
     },
     {
       title: 'Platform Tips',
-      description: 'Receive tips and best practices to get the most out of Intervieu.',
+      description: 'Receive tips and best practices to get the most out of MockDay.',
       initialChecked: false,
     },
   ];
@@ -52,7 +52,7 @@ const NotificationsPage: React.FC = () => {
     <div className="bg-card p-6 sm:p-8 rounded-lg shadow-sm">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-card-foreground">Notifications</h1>
-        <p className="text-muted-foreground mt-1">Manage how you receive notifications from Intervieu.</p>
+        <p className="text-muted-foreground mt-1">Manage how you receive notifications from MockDay.</p>
       </div>
 
       <div>

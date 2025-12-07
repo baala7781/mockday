@@ -26,8 +26,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Intervieu API Gateway",
-    description="API Gateway for Intervieu microservices",
+    title="MockDay API Gateway",
+    description="API Gateway for MockDay microservices",
     version="1.0.0",
     lifespan=lifespan,
 )

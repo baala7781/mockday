@@ -72,7 +72,7 @@ const SignupPage: React.FC = () => {
 
       toast({
         title: "Account created successfully!",
-        description: "Welcome to Intervieu. You're all set to start practicing.",
+        description: "Welcome to MockDay. You're all set to start practicing.",
       });
       
       navigate("/dashboard");
@@ -122,7 +122,7 @@ const SignupPage: React.FC = () => {
             <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center">
               <span className="text-primary-foreground font-bold text-lg">I</span>
             </div>
-            <span className="font-semibold text-2xl text-foreground">Intervieu</span>
+            <span className="font-semibold text-2xl text-foreground">MockDay</span>
           </Link>
           <h1 className="text-3xl font-semibold text-foreground mb-2">Create Your Account</h1>
           <p className="text-muted-foreground">Start practicing interviews and improving your skills</p>
