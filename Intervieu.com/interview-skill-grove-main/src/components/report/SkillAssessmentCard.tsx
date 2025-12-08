@@ -74,7 +74,7 @@ const SkillAssessmentCard: React.FC<SkillAssessmentCardProps> = ({ skillScores, 
                 </div>
               ))
             ) : (
-              <p className="text-sm text-muted-foreground">No technical skills assessed</p>
+              <p className="text-sm text-muted-foreground italic">No technical skills assessed in this interview</p>
             )}
           </div>
         </CardContent>
@@ -89,7 +89,7 @@ const SkillAssessmentCard: React.FC<SkillAssessmentCardProps> = ({ skillScores, 
           </div>
 
           <div className="space-y-4">
-            {sectionScores.communication !== undefined && (
+            {sectionScores.communication !== undefined ? (
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium">Communication</span>
@@ -104,9 +104,9 @@ const SkillAssessmentCard: React.FC<SkillAssessmentCardProps> = ({ skillScores, 
                   ></div>
                 </div>
               </div>
-            )}
+            ) : null}
 
-            {sectionScores.problem_solving !== undefined && (
+            {sectionScores.problem_solving !== undefined ? (
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-1">
@@ -124,9 +124,9 @@ const SkillAssessmentCard: React.FC<SkillAssessmentCardProps> = ({ skillScores, 
                   ></div>
                 </div>
               </div>
-            )}
+            ) : null}
 
-            {sectionScores.technical !== undefined && (
+            {sectionScores.technical !== undefined ? (
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium">Technical Knowledge</span>
@@ -141,27 +141,32 @@ const SkillAssessmentCard: React.FC<SkillAssessmentCardProps> = ({ skillScores, 
                   ></div>
                 </div>
               </div>
-            )}
+            ) : null}
 
             {/* Other section scores */}
             {Object.entries(sectionScores)
-              .filter(([key]) => !['technical', 'communication', 'problem_solving'].includes(key))
-              .map(([key, value]) => value !== undefined && (
+              .filter(([key, value]) => !['technical', 'communication', 'problem_solving'].includes(key) && value !== undefined)
+              .map(([key, value]) => (
                 <div key={key} className="space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium capitalize">{key.replace(/_/g, ' ')}</span>
-                    <span className={`text-sm font-bold ${getScoreTextColor(value)}`}>
+                    <span className={`text-sm font-bold ${getScoreTextColor(value!)}`}>
                       {value}%
                     </span>
                   </div>
                   <div className="h-2 bg-muted rounded-full overflow-hidden">
                     <div
-                      className={`h-full ${getScoreColor(value)} transition-all duration-500 ease-out`}
+                      className={`h-full ${getScoreColor(value!)} transition-all duration-500 ease-out`}
                       style={{ width: `${value}%` }}
                     ></div>
                   </div>
                 </div>
               ))}
+
+            {/* Show message if no section scores */}
+            {Object.keys(sectionScores).filter(key => sectionScores[key] !== undefined).length === 0 && (
+              <p className="text-sm text-muted-foreground italic">No communication or problem-solving skills assessed in this interview</p>
+            )}
           </div>
         </CardContent>
       </Card>

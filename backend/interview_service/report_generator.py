@@ -369,7 +369,61 @@ async def generate_interview_report(
         # Add completion warning if incomplete
         if not is_complete:
             report_data["completion_warning"] = f"This is a partial assessment based on {questions_answered} of {expected_questions} expected questions."
+        
+        # Only include skill scores that were actually assessed
         report_data["skill_scores"] = {skill: float(score) for skill, score in skill_scores.items()}
+        
+        # Clean up section_scores: Remove any scores for skills that weren't actually assessed
+        # Only keep section_scores that correspond to skills in skill_scores
+        if "section_scores" in report_data:
+            # Get list of actually assessed skills (normalized to lowercase for comparison)
+            assessed_skills_lower = {skill.lower() for skill in skill_scores.keys()}
+            
+            # Filter section_scores to only include skills that were actually assessed
+            # Map common section names to skill names
+            section_to_skill_map = {
+                "technical": ["technical", "programming", "coding", "development"],
+                "communication": ["communication", "verbal", "presentation"],
+                "problem_solving": ["problem solving", "problem-solving", "algorithm", "logic"]
+            }
+            
+            filtered_section_scores = {}
+            for section_name, section_value in report_data.get("section_scores", {}).items():
+                # Check if this section corresponds to an assessed skill
+                section_lower = section_name.lower()
+                should_include = False
+                
+                # Direct match
+                if section_lower in assessed_skills_lower:
+                    should_include = True
+                # Check mapped skills
+                elif section_lower in section_to_skill_map:
+                    mapped_skills = section_to_skill_map[section_lower]
+                    if any(mapped_skill in assessed_skills_lower for mapped_skill in mapped_skills):
+                        should_include = True
+                
+                # Only include if it was actually assessed
+                if should_include:
+                    filtered_section_scores[section_name] = section_value
+            
+            # If no section scores match assessed skills, use skill_scores directly
+            if not filtered_section_scores and skill_scores:
+                # Create section_scores from actual skill_scores (only for skills that were assessed)
+                for skill, score in skill_scores.items():
+                    # Normalize skill name to section name
+                    skill_lower = skill.lower()
+                    if "communication" in skill_lower or "verbal" in skill_lower:
+                        filtered_section_scores["communication"] = int(score * 100)
+                    elif "problem" in skill_lower or "algorithm" in skill_lower or "logic" in skill_lower:
+                        filtered_section_scores["problem_solving"] = int(score * 100)
+                    elif "technical" in skill_lower or "programming" in skill_lower or "coding" in skill_lower:
+                        filtered_section_scores["technical"] = int(score * 100)
+                    else:
+                        # Use skill name as section name
+                        filtered_section_scores[skill] = int(score * 100)
+            
+            report_data["section_scores"] = filtered_section_scores
+        
         report_data["coding_performance"] = coding_performance
         report_data["questions"] = questions
         report_data["answers"] = answers

@@ -95,7 +95,7 @@ async def generate_question(
     # Generate prompt with new format (more natural, less rules)
     prompt = f"""You are acting as an expert technical interviewer for the role: {role}. 
 
-Your goal is to conduct a realistic, natural-sounding, professional interview.
+Your goal is to conduct a realistic, natural-sounding, professional interview that accurately assesses the candidate's skills.
 
 ## Candidate Background
 
@@ -123,10 +123,12 @@ Generate ONE natural-sounding interview question that:
 
 2. DOES NOT repeat any previous questions.
 
-3. **IMPORTANT - VARY question types**: 
-   - 70% CONCEPTUAL/GENERAL: Ask about the skill ({skill}) itself, concepts, best practices, tradeoffs
-   - 30% PROJECT-BASED: Ask about their specific project experience
-   - DO NOT always ask about projects!
+3. **IMPORTANT - VARY question types and avoid repetition**: 
+   - 70% CONCEPTUAL/GENERAL: Ask about the skill ({skill}) itself, concepts, best practices, tradeoffs, real-world scenarios
+   - 30% PROJECT-BASED: Ask about their specific project experience (only if relevant and not already covered)
+   - DO NOT always ask about projects! Mix conceptual questions with practical scenarios
+   - If previous questions were about projects, switch to conceptual/theoretical
+   - If previous questions were conceptual, you can ask about projects but make it specific and different
 
 4. Reflects the difficulty level accurately.
 
