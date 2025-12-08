@@ -89,26 +89,81 @@ Resume context (optional - use only for context, don't mention specific details)
 
 Return ONLY the final question text starting with the greeting."""
 
-    try:
-        from shared.providers.gemini_client import gemini_client
-        response = await gemini_client.generate_response(
-            prompt=prompt,
-            model="gemini-2.0-flash-lite",
-            max_tokens=150,
-            temperature=0.7
-        )
-        
-        question_text = response.strip() if response else "Can you tell me about yourself and your background?"
-        
-        # Remove quotes if present
-        if question_text.startswith('"') and question_text.endswith('"'):
-            question_text = question_text[1:-1]
-        if question_text.startswith("'") and question_text.endswith("'"):
-            question_text = question_text[1:-1]
-        
-    except Exception as e:
-        print(f"Error generating intro question: {e}")
-        question_text = "Can you tell me about yourself and your background in software development?"
+    # Retry logic: Try up to 3 times
+    max_retries = 3
+    question_text = None
+    last_error = None
+    
+    for attempt in range(max_retries):
+        try:
+            from shared.providers.gemini_client import gemini_client
+            from shared.providers.pool_manager import provider_pool_manager, ProviderType
+            
+            # Check if Gemini API keys are configured
+            if attempt == 0:
+                pool_stats = await provider_pool_manager.get_pool_stats(ProviderType.GEMINI)
+                logger.info(f"🤖 [Intro Question] Gemini pool stats: {pool_stats}")
+                if pool_stats["total_accounts"] == 0:
+                    logger.error("❌ [Intro Question] No Gemini API keys configured! Check GEMINI_API_KEYS environment variable.")
+                    break
+            
+            logger.info(f"🤖 [Intro Question] Attempt {attempt + 1}/{max_retries}: Generating intro question...")
+            response = await gemini_client.generate_response(
+                prompt=prompt,
+                model="gemini-2.0-flash-lite",
+                max_tokens=150,
+                temperature=0.85  # Higher temperature for more variety
+            )
+            
+            logger.info(f"🤖 [Intro Question] Attempt {attempt + 1}: LLM response length: {len(response) if response else 0}")
+            
+            if response and response.strip():
+                question_text = response.strip()
+                
+                # Remove quotes if present
+                if question_text.startswith('"') and question_text.endswith('"'):
+                    question_text = question_text[1:-1]
+                if question_text.startswith("'") and question_text.endswith("'"):
+                    question_text = question_text[1:-1]
+                
+                # Validate the question is reasonable
+                if len(question_text) > 20:
+                    # Check if it contains greeting (case-insensitive)
+                    greeting_found = name_greeting.lower() in question_text.lower() or "hi" in question_text.lower() or "hello" in question_text.lower()
+                    if greeting_found:
+                        logger.info(f"✅ [Intro Question] Successfully generated: {question_text[:80]}...")
+                        break
+                    else:
+                        logger.warning(f"⚠️ [Intro Question] Response missing greeting: {question_text[:80]}...")
+                        # Still use it if it's reasonable
+                        if len(question_text) > 30:
+                            logger.info(f"✅ [Intro Question] Using response without explicit greeting: {question_text[:80]}...")
+                            break
+                        question_text = None  # Retry
+                else:
+                    logger.warning(f"⚠️ [Intro Question] Response too short: {question_text}")
+                    question_text = None  # Retry
+            
+            if not question_text:
+                logger.warning(f"⚠️ [Intro Question] Attempt {attempt + 1}: Empty or invalid response from LLM")
+            
+        except Exception as e:
+            last_error = e
+            logger.error(f"❌ [Intro Question] Attempt {attempt + 1} failed: {e}", exc_info=True)
+            if attempt < max_retries - 1:
+                # Wait before retry (exponential backoff)
+                import asyncio
+                await asyncio.sleep(0.5 * (attempt + 1))
+            else:
+                logger.error(f"❌ [Intro Question] All {max_retries} attempts failed. Last error: {last_error}")
+    
+    # Only use fallback if ALL retries failed
+    if not question_text:
+        logger.error("❌ [Intro Question] LLM generation failed completely, using fallback with candidate name")
+        if candidate_name:
+            question_text = f"Hi {candidate_name}, how are you doing today? Can you tell me about yourself and your background?"
+        else:
+            question_text = "Hi, how are you doing today? Can you tell me about yourself and your background?"
     
     return Question(
         question_id=str(uuid.uuid4()),

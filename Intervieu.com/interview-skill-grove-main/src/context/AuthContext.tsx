@@ -41,7 +41,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     try {
-      console.log('🔄 Fetching profile and resumes on app startup...');
       const token = await user.getIdToken();
       const [profileData, resumesData] = await Promise.all([
         getProfile(token),
@@ -49,10 +48,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       ]);
       setProfile(profileData);
       setResumes(resumesData);
-      console.log('✅ Profile and resumes loaded:', { 
-        profile: profileData ? 'loaded' : 'empty', 
-        resumes: resumesData?.length || 0 
-      });
     } catch (error) {
       console.error('❌ Error fetching profile/resumes:', error);
       // Non-blocking - continue even if fetch fails

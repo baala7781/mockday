@@ -217,10 +217,19 @@ class GeminiClientWrapper:
         completion_note = ""
         if not is_complete or completion_percentage < 80:
             completion_note = f"""
-⚠️ IMPORTANT: This is an INCOMPLETE interview ({actual_questions}/{expected_questions} questions = {completion_percentage:.0f}% complete).
-- Maximum possible score for incomplete interviews should be capped at 60-70%
-- Recommendation should reflect incomplete assessment
-- Be honest about limited data
+⚠️ CRITICAL: This is an INCOMPLETE interview ({actual_questions}/{expected_questions} questions = {completion_percentage:.0f}% complete).
+
+**STRICT RULES FOR INCOMPLETE INTERVIEWS:**
+1. ONLY assess skills that were ACTUALLY evaluated in the questions/answers provided
+2. DO NOT create section_scores for skills that were NOT assessed (e.g., if only 1 question was asked, only assess that ONE skill)
+3. DO NOT generate strengths/weaknesses for skills that were NOT evaluated
+4. Maximum possible score should be capped based on completion:
+   - <50% complete: Cap at 50-60%
+   - 50-75% complete: Cap at 60-70%
+   - 75-80% complete: Cap at 70-75%
+5. Recommendation MUST reflect incomplete assessment (use "maybe" or "no_hire" unless exceptional)
+6. Be EXPLICITLY honest: "Limited assessment due to incomplete interview"
+7. Only include skills in section_scores that were actually evaluated in the transcript
 """
         
         prompt = f"""Generate a REALISTIC and HONEST interview evaluation report for a {role} position.
@@ -255,14 +264,21 @@ User Profile:
 
 **BE HONEST AND CRITICAL.** Don't inflate scores. If answers were vague, short, or incorrect, score accordingly.
 
+**CRITICAL RULES:**
+1. ONLY include skills in section_scores that were ACTUALLY evaluated in the questions/answers
+2. If only 1 question was asked, ONLY assess that ONE skill - do NOT create scores for communication, problem_solving, etc. unless they were explicitly evaluated
+3. DO NOT generate generic strengths like "Participated in interview" - only real, demonstrated strengths
+4. If interview is incomplete, be explicit: "This assessment is limited due to incomplete interview"
+5. Strengths and weaknesses must be SPECIFIC to what was actually said/demonstrated
+
 Generate a detailed report in JSON format with:
-- overall_score: integer (0-100) - BE REALISTIC based on actual performance
-- section_scores: object with scores for different areas (technical, communication, problem_solving, etc.)
-- strengths: list of strings (only if genuinely demonstrated)
-- weaknesses: list of strings (be specific about gaps)
-- detailed_feedback: string (comprehensive, honest feedback)
-- recommendation: string (strong_hire, hire, maybe, no_hire)
-- improvement_suggestions: list of strings (actionable suggestions)
+- overall_score: integer (0-100) - BE REALISTIC based on actual performance, cap appropriately for incomplete interviews
+- section_scores: object with scores ONLY for areas that were actually evaluated (e.g., if only "Introduction" was asked, only include that skill, NOT communication/problem_solving)
+- strengths: list of strings (ONLY if genuinely demonstrated in the actual answers - NO generic statements)
+- weaknesses: list of strings (be specific about gaps, or "Limited assessment due to incomplete interview" if incomplete)
+- detailed_feedback: string (comprehensive, honest feedback - mention if incomplete)
+- recommendation: string (strong_hire, hire, maybe, no_hire) - reflect incomplete status if applicable
+- improvement_suggestions: list of strings (actionable suggestions, include "Complete full interview for accurate assessment" if incomplete)
 
 Response (JSON only):"""
         

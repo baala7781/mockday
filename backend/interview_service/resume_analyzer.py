@@ -89,33 +89,74 @@ DO NOT include:
 Return only valid JSON, no additional text:"""
 
     try:
-        logger.info(f"Analyzing resume with LLM (text length: {len(resume_text)} chars)")
-        response = await gemini_client.generate_response(
-            prompt=prompt,
-            # model="gemini-2.0-flash-lite",  # Use gemini-2.0-flash-lite model
-            model="gemini-2.0-flash",
-            max_tokens=4000,  # Increase for longer resumes
-            temperature=0.3
-        )
+        logger.info(f"📄 [Resume Parser] Analyzing resume with LLM (text length: {len(resume_text)} chars)")
         
-        if not response:
-            logger.warning("LLM returned empty response for resume analysis")
+        # Check Gemini API keys before attempting
+        from shared.providers.pool_manager import provider_pool_manager, ProviderType
+        pool_stats = await provider_pool_manager.get_pool_stats(ProviderType.GEMINI)
+        logger.info(f"📄 [Resume Parser] Gemini pool stats: {pool_stats}")
+        
+        if pool_stats["total_accounts"] == 0:
+            logger.error("❌ [Resume Parser] No Gemini API keys configured! Check GEMINI_API_KEYS environment variable.")
             return ResumeData()
         
-        logger.debug(f"LLM response (first 500 chars): {response[:500]}")
+        # Retry logic for resume parsing
+        max_retries = 2
+        response = None
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"📄 [Resume Parser] Attempt {attempt + 1}/{max_retries}: Calling Gemini API...")
+                response = await gemini_client.generate_response(
+                    prompt=prompt,
+                    model="gemini-2.0-flash",
+                    max_tokens=4000,  # Increase for longer resumes
+                    temperature=0.3
+                )
+                
+                if response:
+                    logger.info(f"✅ [Resume Parser] Got response from LLM (length: {len(response)} chars)")
+                    break
+                else:
+                    logger.warning(f"⚠️ [Resume Parser] Attempt {attempt + 1}: LLM returned empty response")
+                    if attempt < max_retries - 1:
+                        import asyncio
+                        await asyncio.sleep(1)
+            except Exception as e:
+                logger.error(f"❌ [Resume Parser] Attempt {attempt + 1} failed: {e}", exc_info=True)
+                if attempt < max_retries - 1:
+                    import asyncio
+                    await asyncio.sleep(1)
+                else:
+                    raise
+        
+        if not response:
+            logger.error("❌ [Resume Parser] LLM returned empty response after all retries")
+            return ResumeData()
+        
+        logger.debug(f"📄 [Resume Parser] LLM response (first 500 chars): {response[:500]}")
         
         # Extract JSON from response
         json_start = response.find("{")
         json_end = response.rfind("}") + 1
         if json_start < 0 or json_end <= json_start:
-            logger.error(f"Could not find JSON in LLM response. Response: {response[:1000]}")
+            logger.error(f"❌ [Resume Parser] Could not find JSON in LLM response. Response length: {len(response)}")
+            logger.error(f"❌ [Resume Parser] Response preview: {response[:1000]}")
             return ResumeData()
         
         try:
-            data = json.loads(response[json_start:json_end])
-            logger.info(f"Parsed resume data: {len(data.get('skills', []))} skills, {len(data.get('projects', []))} projects, {len(data.get('experience', []))} experiences")
+            json_str = response[json_start:json_end]
+            logger.debug(f"📄 [Resume Parser] Extracted JSON (length: {len(json_str)} chars)")
+            data = json.loads(json_str)
+            skills_count = len(data.get('skills', []))
+            projects_count = len(data.get('projects', []))
+            exp_count = len(data.get('experience', []))
+            logger.info(f"✅ [Resume Parser] Parsed resume data: {skills_count} skills, {projects_count} projects, {exp_count} experiences")
+            
+            if skills_count == 0 and projects_count == 0:
+                logger.warning("⚠️ [Resume Parser] No skills or projects extracted from resume. This might indicate a parsing issue.")
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON from LLM response: {e}. Response: {response[json_start:json_end][:1000]}")
+            logger.error(f"❌ [Resume Parser] Failed to parse JSON from LLM response: {e}")
+            logger.error(f"❌ [Resume Parser] JSON string (first 1000 chars): {json_str[:1000] if 'json_str' in locals() else 'N/A'}")
             return ResumeData()
         
         # Convert to ResumeData model with error handling

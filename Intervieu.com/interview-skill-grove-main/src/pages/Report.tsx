@@ -77,7 +77,6 @@ const Report: React.FC = () => {
       const cached = reportCacheRef.current.get(interviewId);
       const now = Date.now();
       if (cached && (now - cached.timestamp) < CACHE_DURATION) {
-        console.log('Using cached report');
         setReportData(cached.data);
         setLoading(false);
         return;

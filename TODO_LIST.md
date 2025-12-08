@@ -35,13 +35,13 @@
   - Update all import paths
   - Update deployment configs
 
-- [ ] **Update index.html**
+- [x] **Update index.html** ✅ DONE
   - Change title: "interview-skill-grove" → "MockDay"
   - Remove Lovable meta tags
   - Update description: "Lovable Generated Project" → "MockDay - AI Interview Platform"
   - Remove Lovable Twitter references
 
-- [ ] **Update package.json**
+- [x] **Update package.json** ✅ DONE
   - Change name: "vite_react_shadcn_ts" → "mockday-frontend"
   - Update description
 
@@ -235,4 +235,3 @@
 ---
 
 **Note**: Check off items as you complete them. Update this file regularly.
-

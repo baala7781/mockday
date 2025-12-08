@@ -76,7 +76,7 @@ async def evaluate_answer(
             context = f"\nCandidate's last score: {last_score:.2f}/1.0"
     
     # Build prompt with improved format (more reliable, less hallucination)
-    prompt = f"""You are evaluating a candidate's answer in a technical interview.
+    prompt = f"""You are evaluating a candidate's answer in a technical interview. Be CRITICAL and HONEST.
 
 Question:
 
@@ -98,17 +98,24 @@ Additional Context:
 
 {context if context else "No previous evaluations."}
 
-## Evaluation Rules
+## Evaluation Rules (STRICT)
 
-- Use ONLY the provided question and answer.
+- Use ONLY the provided question and answer. Do NOT assume or invent information.
 
-- Do NOT invent information that was not said.
+- Be CRITICAL: If the answer is vague, incomplete, or incorrect, score accordingly (0.3-0.5 range).
 
-- Score must reflect technical correctness and clarity.
+- Score must reflect technical correctness, completeness, and clarity.
 
 - Follow the scoring weights:
 
 {criteria_desc}
+
+- Scoring Guidelines:
+  * 0.9-1.0: Exceptional - Complete, accurate, demonstrates deep understanding
+  * 0.7-0.89: Good - Mostly correct, minor gaps or lack of depth
+  * 0.5-0.69: Average - Partially correct, some understanding but significant gaps
+  * 0.3-0.49: Below Average - Vague, incorrect, or missing key concepts
+  * 0.0-0.29: Poor - Incorrect, no understanding demonstrated
 
 ## Output Requirements
 
@@ -116,10 +123,10 @@ Return a VALID JSON object with:
 
 {{
   "score": float between 0.0 and 1.0,
-  "feedback": "detailed and helpful feedback",
-  "strengths": [...],
-  "weaknesses": [...],
-  "suggestions": [...],
+  "feedback": "detailed, specific, and constructive feedback - be honest about gaps",
+  "strengths": ["specific strength 1", "specific strength 2"] - ONLY if genuinely demonstrated,
+  "weaknesses": ["specific weakness 1", "specific weakness 2"] - be specific about what was missing or incorrect,
+  "suggestions": ["actionable suggestion 1", "actionable suggestion 2"],
   "next_difficulty": 1 to 4,
   "skill_assessment": {{
       "{question.skill}": float between 0.0 and 1.0
@@ -131,6 +138,10 @@ Rules:
 - JSON ONLY. No explanation.
 
 - STRICT JSON. No trailing commas.
+
+- Feedback must be SPECIFIC: Reference what was said correctly/incorrectly, what was missing, what could be improved.
+
+- Strengths/weaknesses must be SPECIFIC to the answer given - NO generic statements.
 
 - Next difficulty logic:
 

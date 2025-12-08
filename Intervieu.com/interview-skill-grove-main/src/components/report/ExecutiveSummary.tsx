@@ -61,9 +61,9 @@ const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
   return (
     <Card className="mb-8 border-2">
       <CardContent className="pt-6">
-        <div className="flex flex-col lg:flex-row items-start lg:items-center gap-8">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center gap-8 lg:gap-12">
           {/* Score Circle */}
-          <div className="relative flex-shrink-0">
+          <div className="relative flex-shrink-0 mx-auto lg:mx-0">
             {hasScore ? (
               <>
                 <svg className="w-40 h-40 lg:w-48 lg:h-48 transform -rotate-90">
