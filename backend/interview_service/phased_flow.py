@@ -110,7 +110,7 @@ Return ONLY the final question text starting with the greeting."""
             logger.info(f"🤖 [Intro Question] Attempt {attempt + 1}/{max_retries}: Generating intro question...")
             response = await gemini_client.generate_response(
                 prompt=prompt,
-                model="gemini-2.0-flash-lite",
+                model="gemini-2.5-flash-lite",
                 max_tokens=150,
                 temperature=0.85  # Higher temperature for more variety
             )

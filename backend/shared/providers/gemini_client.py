@@ -15,7 +15,7 @@ class GeminiClientWrapper:
     async def generate_response(
         self,
         prompt: str,
-        model: str = "gemini-2.0-flash-lite",
+        model: str = "gemini-2.5-flash-lite",
         stream: bool = False,
         temperature: float = 0.7,
         max_tokens: int = 1000
@@ -25,7 +25,7 @@ class GeminiClientWrapper:
         
         Args:
             prompt: Input prompt
-            model: Model to use (gemini-2.0-flash-lite, gemini-pro, gemini-1.5-pro, etc.)
+            model: Model to use (gemini-2.5-flash-lite, gemini-pro, gemini-1.5-pro, etc.)
             stream: Whether to stream response (not fully supported yet)
             temperature: Temperature for generation
             max_tokens: Maximum tokens to generate (used as max_output_tokens)
@@ -284,7 +284,7 @@ Response (JSON only):"""
         
         response = await self.generate_response(
             prompt=prompt,
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash-lite",
             max_tokens=2000,
             temperature=0.3
         )

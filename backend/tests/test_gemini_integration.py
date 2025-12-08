@@ -53,7 +53,7 @@ async def test_gemini_connection():
     try:
         response = await gemini_client.generate_response(
             prompt="Say 'Hello, World!' and nothing else.",
-            model="gemini-2.0-flash-lite",
+            model="gemini-2.5-flash-lite",
             max_tokens=50,
             temperature=0.7
         )
