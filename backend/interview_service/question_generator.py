@@ -172,7 +172,7 @@ Do NOT include numbers, prefixes, explanations, or additional commentary."""
     try:
         response = await gemini_client.generate_response(
             prompt=prompt,
-            model="gemini-2.0-flash-lite",
+            model="gemini-2.5-flash-lite",
             max_tokens=500,
             temperature=0.7
         )
@@ -261,7 +261,7 @@ Generate NOW (JSON only):"""
         # Try LLM generation first with increased temperature for variety
         response = await gemini_client.generate_response(
             prompt=prompt,
-            model="gemini-2.0-flash-exp",
+            model="gemini-2.5-flash-lite",
             max_tokens=1500,
             temperature=0.85  # Higher for more creative/varied problems
         )

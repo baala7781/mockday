@@ -108,7 +108,7 @@ Return only valid JSON, no additional text:"""
                 logger.info(f"📄 [Resume Parser] Attempt {attempt + 1}/{max_retries}: Calling Gemini API...")
                 response = await gemini_client.generate_response(
                     prompt=prompt,
-                    model="gemini-2.0-flash",
+                    model="gemini-2.5-flash-lite",
                     max_tokens=4000,  # Increase for longer resumes
                     temperature=0.3
                 )

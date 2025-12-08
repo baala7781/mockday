@@ -164,7 +164,7 @@ Rules:
     try:
         response = await gemini_client.generate_response(
             prompt=prompt,
-            model="gemini-2.0-flash-lite",
+            model="gemini-2.5-flash-lite",
             max_tokens=1000,
             temperature=0.3
         )
@@ -303,7 +303,7 @@ Return only valid JSON:"""
     try:
         response = await gemini_client.generate_response(
             prompt=prompt,
-            model="gemini-2.0-flash-lite",
+            model="gemini-2.5-flash-lite",
             max_tokens=1500,
             temperature=0.3
         )

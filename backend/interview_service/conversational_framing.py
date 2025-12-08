@@ -113,7 +113,7 @@ Generate ONLY the transition text, no additional explanation:"""
     try:
         response = await gemini_client.generate_response(
             prompt=prompt,
-            model="gemini-2.0-flash-lite",
+            model="gemini-2.5-flash-lite",
             max_tokens=100,
             temperature=0.7
         )
