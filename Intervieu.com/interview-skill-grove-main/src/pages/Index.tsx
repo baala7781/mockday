@@ -84,9 +84,9 @@ const Index: React.FC = () => {
             <CardContent className="p-10 md:p-16">
             <div className="text-center mb-10">
               <h2 className="text-3xl font-medium mb-4">Ready to Transform Your Interview Skills?</h2>
-              <p className="text-foreground/70 max-w-2xl mx-auto">
+              {/* <p className="text-foreground/70 max-w-2xl mx-auto">
                 Join thousands of candidates who have improved their interview performance and landed their dream jobs.
-              </p>
+              </p> */}
             </div>
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">

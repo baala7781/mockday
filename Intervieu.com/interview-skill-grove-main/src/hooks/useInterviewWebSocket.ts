@@ -92,6 +92,7 @@ export function useInterviewWebSocket(
   const [isInterviewCompleted, setIsInterviewCompleted] = useState(false);
   const [isProcessingAnswer, setIsProcessingAnswer] = useState(false); // True when waiting for next question
   const [deepgramApiKey, setDeepgramApiKey] = useState<string | null>(null);
+  const [isLoadingDeepgramKey, setIsLoadingDeepgramKey] = useState(false);
   const transcriptRef = useRef('');
   const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastActivityRef = useRef<number>(Date.now());
@@ -105,25 +106,38 @@ export function useInterviewWebSocket(
 
   // Fetch Deepgram API key: Check env var first (local dev), then backend (production)
   useEffect(() => {
-    if (enableAudioRecording && !deepgramApiKey) {
+    if (enableAudioRecording && !deepgramApiKey && !isLoadingDeepgramKey) {
       // Check for local development API key first
       const localApiKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
       if (localApiKey) {
+        console.log('✅ Using local Deepgram API key from .env.local');
         setDeepgramApiKey(localApiKey);
         return;
       }
 
       // Fall back to backend API (production)
+      console.log('🔑 Fetching Deepgram API key from backend...');
+      setIsLoadingDeepgramKey(true);
       interviewService.getDeepgramToken(interviewId)
         .then(response => {
-          setDeepgramApiKey(response.api_key);
+          console.log('📦 Deepgram token response:', { hasApiKey: !!response.api_key, keys: Object.keys(response) });
+          if (response.api_key) {
+            console.log('✅ Deepgram API key received from backend');
+            setDeepgramApiKey(response.api_key);
+            setIsLoadingDeepgramKey(false);
+          } else {
+            console.error('❌ Deepgram token response missing api_key:', response);
+            setIsLoadingDeepgramKey(false);
+            onError?.('Failed to get Deepgram API key from server. Response: ' + JSON.stringify(response));
+          }
         })
         .catch(err => {
-          console.error('Error fetching Deepgram token:', err);
-          onError?.('Failed to initialize speech recognition');
+          console.error('❌ Error fetching Deepgram token:', err);
+          setIsLoadingDeepgramKey(false);
+          onError?.('Failed to initialize speech recognition. Please check your connection and try again.');
         });
     }
-  }, [enableAudioRecording, interviewId, deepgramApiKey, onError]);
+  }, [enableAudioRecording, interviewId, deepgramApiKey, isLoadingDeepgramKey, onError]);
 
   // Direct Deepgram STT - Browser connects directly to Deepgram (no backend proxy)
   // This eliminates all the complexity of audio forwarding, batching, and buffering
@@ -337,8 +351,13 @@ export function useInterviewWebSocket(
     }
 
     if (!deepgramApiKey) {
-      console.warn('Cannot start recording: Deepgram API key not ready');
-      onError?.('Speech recognition is initializing...');
+      if (isLoadingDeepgramKey) {
+        console.warn('Cannot start recording: Deepgram API key is still loading...');
+        onError?.('Speech recognition is initializing... Please wait a moment.');
+      } else {
+        console.warn('Cannot start recording: Deepgram API key not available');
+        onError?.('Speech recognition failed to initialize. Please refresh the page and try again.');
+      }
       return;
     }
 
