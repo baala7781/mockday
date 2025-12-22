@@ -366,8 +366,9 @@ async def generate_interview_report(
         report_data["is_complete"] = is_complete
         report_data["completion_percentage"] = round(questions_answered / expected_questions * 100)
         
-        # Add completion warning if incomplete
-        if not is_complete:
+        # Add completion warning only if significantly incomplete (< 80% complete)
+        completion_percentage = (questions_answered / expected_questions * 100) if expected_questions > 0 else 0
+        if completion_percentage < 80:
             report_data["completion_warning"] = f"This is a partial assessment based on {questions_answered} of {expected_questions} expected questions."
         
         # Only include skill scores that were actually assessed

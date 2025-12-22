@@ -24,12 +24,17 @@ class RedisClient:
             self.redis = aioredis.Redis(connection_pool=self._connection_pool)
             # Test connection
             await self.redis.ping()
-        except Exception as e:
-            # Redis is optional - log at debug level if connection fails
             import logging
             logger = logging.getLogger(__name__)
-            logger.debug(f"Redis connection failed (non-critical): {e}")
-            logger.info("Continuing without Redis - using Firestore only for state persistence")
+            logger.info(f"✅ Redis connected successfully: {settings.REDIS_URL}")
+        except Exception as e:
+            # Redis is optional - but log at INFO level so users know
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"⚠️ Redis connection failed: {e}")
+            logger.warning(f"⚠️ Redis URL: {settings.REDIS_URL}")
+            logger.warning("⚠️ Continuing without Redis - BYOK keys and caching will not work")
+            logger.warning("⚠️ To enable Redis: 1) Install Redis locally, 2) Set REDIS_URL in .env, 3) Start Redis server")
             self.redis = None
     
     async def disconnect(self):
@@ -46,9 +51,15 @@ class RedisClient:
         try:
             value = await self.redis.get(key)
             if value:
+                # Try JSON decode first (for complex types like dict/list)
                 try:
-                    return json.loads(value)
+                    decoded = json.loads(value)
+                    # If decoded is a string, it was double-encoded, return as-is
+                    if isinstance(decoded, str):
+                        return decoded
+                    return decoded
                 except json.JSONDecodeError:
+                    # Not JSON, return as string (e.g., API keys stored as plain strings)
                     return value
             return None
         except Exception as e:

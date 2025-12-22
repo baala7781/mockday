@@ -1,5 +1,5 @@
 """Interview Service - FastAPI application with WebSocket support."""
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends, UploadFile, File
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
@@ -307,6 +307,91 @@ async def update_profile(
         logger.error(f"Error updating profile: {e}")
         logger.error(f"Error updating profile: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to update profile")
+
+
+# ============================================================================
+# Email Verification Endpoints
+# ============================================================================
+@app.get("/api/auth/email-verification-status")
+async def get_email_verification_status(user: dict = Depends(get_current_user)):
+    """Check if user's email is verified."""
+    try:
+        user_id = user["uid"]
+        email = user.get("email")
+        
+        # Get Firebase Auth user to check email verification status
+        from firebase_admin import auth as firebase_auth
+        from datetime import datetime, timezone
+        try:
+            firebase_user = firebase_auth.get_user(user_id)
+            email_verified = firebase_user.email_verified
+            
+            # Also check Firestore for verification status (for backwards compatibility)
+            profile = await firestore_client.get_document("users", user_id)
+            firestore_verified = profile.get("emailVerified", False) if profile else False
+            
+            # Email is verified if either Firebase Auth or Firestore says so
+            is_verified = email_verified or firestore_verified
+            
+            # Update Firestore if Firebase Auth says verified but Firestore doesn't
+            if email_verified and not firestore_verified:
+                await firestore_client.set_document(
+                    "users", 
+                    user_id, 
+                    {"emailVerified": True, "emailVerifiedAt": datetime.now(timezone.utc)}, 
+                    merge=True
+                )
+            
+            return {
+                "email": email,
+                "emailVerified": is_verified,
+                "emailVerifiedAt": profile.get("emailVerifiedAt") if profile else None
+            }
+        except Exception as e:
+            logger.error(f"Error checking Firebase Auth user: {e}", exc_info=True)
+            # Fallback to Firestore only
+            profile = await firestore_client.get_document("users", user_id)
+            return {
+                "email": email,
+                "emailVerified": profile.get("emailVerified", False) if profile else False,
+                "emailVerifiedAt": profile.get("emailVerifiedAt") if profile else None
+            }
+    except Exception as e:
+        logger.error(f"Error getting email verification status: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to check email verification status")
+
+
+@app.post("/api/auth/verify-email")
+async def verify_email(
+    verification_data: Dict[str, Any],
+    user: dict = Depends(get_current_user)
+):
+    """Mark email as verified (called after user clicks verification link)."""
+    try:
+        user_id = user["uid"]
+        
+        # Update Firestore with verification status
+        from datetime import datetime, timezone
+        update_data = {
+            "emailVerified": True,
+            "emailVerifiedAt": datetime.now(timezone.utc)
+        }
+        
+        success = await firestore_client.set_document("users", user_id, update_data, merge=True)
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to update verification status")
+        
+        # Invalidate profile cache
+        cache_key = f"user_profile:{user_id}"
+        try:
+            await redis_client.delete(cache_key)
+        except Exception as e:
+            logger.debug(f"Redis cache delete failed (non-critical): {e}")
+        
+        return {"success": True, "message": "Email verified successfully"}
+    except Exception as e:
+        logger.error(f"Error verifying email: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to verify email")
 
 
 # ============================================================================
@@ -687,8 +772,33 @@ async def start_interview_endpoint(
             role=request.role,
             resume_data=resume_data,
             skill_weights=skill_weights,
-            max_questions=12  # Increased for phased approach
+            max_questions=15  # Increased for phased approach
         )
+        
+        # Store BYOK OpenRouter key in Redis (not Firestore - client-side only, temporary)
+        if request.byok_openrouter_key:
+            byok_key = f"interview:{interview_state.interview_id}:byok_openrouter"
+            try:
+                # Check if Redis is connected
+                if not redis_client.redis:
+                    logger.error(f"❌ Cannot store BYOK key: Redis is not connected. Please start Redis server or set REDIS_URL in .env")
+                    logger.error(f"❌ Redis URL configured: {settings.REDIS_URL}")
+                    logger.error(f"❌ BYOK OpenRouter key will not be used for this interview")
+                else:
+                    # Store as plain string (not JSON) so it can be retrieved easily
+                    stored = await redis_client.set(byok_key, request.byok_openrouter_key, expire=3600)  # 1 hour TTL
+                    if stored:
+                        logger.info(f"✅ Stored BYOK OpenRouter key for interview {interview_state.interview_id} (not persisted to DB, key length: {len(request.byok_openrouter_key)})")
+                        # Verify it was stored correctly
+                        verify_key = await redis_client.get(byok_key)
+                        if verify_key:
+                            logger.info(f"✅ Verified BYOK key stored in Redis (retrieved length: {len(str(verify_key))})")
+                        else:
+                            logger.warning(f"⚠️ BYOK key storage verification failed - key not found immediately after storing")
+                    else:
+                        logger.warning(f"⚠️ Failed to store BYOK key in Redis (set() returned False)")
+            except Exception as e:
+                logger.warning(f"Failed to store BYOK OpenRouter key in Redis: {e}", exc_info=True)
         
         # Get candidate name safely from profile (if available)
         candidate_name = get_candidate_name_safely(profile_data) if profile_data else None
@@ -1029,6 +1139,99 @@ async def get_interviews(user: dict = Depends(get_current_user)):
             status_code=500, 
             detail=f"An error occurred while fetching interviews: {sanitize_error_message(e)}"
         )
+
+
+@app.delete("/api/admin/interviews/user/{user_id}")
+async def delete_user_interviews_admin(
+    user_id: str,
+    user: dict = Depends(get_current_user),
+    confirm: bool = Query(False, description="Set to true to actually delete (safety measure)")
+):
+    """
+    Delete all interviews and reports for a specific user.
+    Requires admin privileges or user deleting their own data.
+    
+    Query params:
+        - confirm: Must be true to actually delete (safety measure)
+    """
+    try:
+        current_user_id = user["uid"]
+        
+        # Allow if user is deleting their own data, or if they're an admin
+        # For now, we'll allow users to delete their own data
+        if user_id != current_user_id:
+            # TODO: Add admin check here if you have admin roles
+            raise HTTPException(status_code=403, detail="You can only delete your own interviews")
+        
+        if not confirm:
+            # Query first to show what would be deleted
+            interviews = await firestore_client.query_collection(
+                collection="interviews",
+                filters=[("user_id", "==", user_id)]
+            )
+            reports = await firestore_client.query_collection(
+                collection="reports",
+                filters=[("user_id", "==", user_id)]
+            )
+            
+            return {
+                "preview": True,
+                "interviews_count": len(interviews),
+                "reports_count": len(reports),
+                "message": "Set confirm=true to actually delete. This is a preview.",
+                "interview_ids": [doc.get("id") or doc.get("interview_id") for doc in interviews],
+                "report_ids": [doc.get("id") or doc.get("report_id") for doc in reports]
+            }
+        
+        # Actually delete
+        interview_ids = []
+        interviews = await firestore_client.query_collection(
+            collection="interviews",
+            filters=[("user_id", "==", user_id)]
+        )
+        for interview in interviews:
+            interview_id = interview.get("id") or interview.get("interview_id")
+            if interview_id:
+                interview_ids.append(interview_id)
+        
+        report_ids = []
+        reports = await firestore_client.query_collection(
+            collection="reports",
+            filters=[("user_id", "==", user_id)]
+        )
+        for report in reports:
+            report_id = report.get("id") or report.get("report_id")
+            if report_id:
+                report_ids.append(report_id)
+        
+        # Delete interviews
+        deleted_interviews = []
+        for interview_id in interview_ids:
+            success = await firestore_client.delete_document("interviews", interview_id)
+            if success:
+                deleted_interviews.append(interview_id)
+        
+        # Delete reports
+        deleted_reports = []
+        for report_id in report_ids:
+            success = await firestore_client.delete_document("reports", report_id)
+            if success:
+                deleted_reports.append(report_id)
+        
+        logger.info(f"🗑️  Deleted {len(deleted_interviews)} interviews and {len(deleted_reports)} reports for user {user_id}")
+        
+        return {
+            "success": True,
+            "deleted_interviews": len(deleted_interviews),
+            "deleted_reports": len(deleted_reports),
+            "interview_ids": deleted_interviews,
+            "report_ids": deleted_reports
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting user interviews: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to delete interviews: {str(e)}")
 
 
 @app.post("/api/admin/regenerate-report/{interview_id}")

@@ -173,11 +173,46 @@ class FirestoreClient:
         if not self.db:
             return False
         try:
-            self.db.collection(collection).document(document_id).delete()
+            import asyncio
+            import logging
+            logger = logging.getLogger(__name__)
+            
+            def _delete_doc():
+                self.db.collection(collection).document(document_id).delete()
+                logger.info(f"✅ Deleted document {collection}/{document_id}")
+            
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, _delete_doc)
             return True
         except Exception as e:
-            print(f"Error deleting document: {e}")
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"❌ Error deleting document {collection}/{document_id}: {e}")
             return False
+    
+    async def delete_documents_batch(self, collection: str, document_ids: List[str]) -> dict:
+        """Delete multiple documents from Firestore in batch."""
+        self._ensure_initialized()
+        if not self.db:
+            return {"deleted": [], "failed": document_ids}
+        
+        deleted = []
+        failed = []
+        
+        for doc_id in document_ids:
+            success = await self.delete_document(collection, doc_id)
+            if success:
+                deleted.append(doc_id)
+            else:
+                failed.append(doc_id)
+        
+        return {
+            "deleted": deleted,
+            "failed": failed,
+            "total": len(document_ids),
+            "success_count": len(deleted),
+            "failed_count": len(failed)
+        }
 
 
 # Global Firestore client instance

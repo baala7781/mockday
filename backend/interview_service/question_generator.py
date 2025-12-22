@@ -174,7 +174,8 @@ Do NOT include numbers, prefixes, explanations, or additional commentary."""
             prompt=prompt,
             model="gemini-2.5-flash-lite",
             max_tokens=500,
-            temperature=0.7
+            temperature=0.7,
+            interview_id=state.interview_id if state else None  # Pass interview_id for BYOK support
         )
         
         if response:
@@ -263,7 +264,8 @@ Generate NOW (JSON only):"""
             prompt=prompt,
             model="gemini-2.5-flash-lite",
             max_tokens=1500,
-            temperature=0.85  # Higher for more creative/varied problems
+            temperature=0.85,  # Higher for more creative/varied problems
+            interview_id=state.interview_id if state else None  # Pass interview_id for BYOK support
         )
         
         if response:

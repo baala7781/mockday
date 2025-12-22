@@ -104,10 +104,18 @@ export function useInterviewWebSocket(
     // WebSocket URL for interview tracked
   }, [interviewId, wsUrl]);
 
-  // Fetch Deepgram API key: Check env var first (local dev), then backend (production)
+  // Fetch Deepgram API key: Check BYOK first, then env var, then backend
   useEffect(() => {
     if (enableAudioRecording && !deepgramApiKey && !isLoadingDeepgramKey) {
-      // Check for local development API key first
+      // 1. Check for BYOK key first (stored in localStorage)
+      const byokKey = localStorage.getItem('byok_deepgram_key');
+      if (byokKey && byokKey.trim()) {
+        console.log('✅ Using BYOK Deepgram API key from localStorage');
+        setDeepgramApiKey(byokKey.trim());
+        return;
+      }
+
+      // 2. Check for local development API key
       const localApiKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
       if (localApiKey) {
         console.log('✅ Using local Deepgram API key from .env.local');
@@ -115,7 +123,7 @@ export function useInterviewWebSocket(
         return;
       }
 
-      // Fall back to backend API (production)
+      // 3. Fall back to backend API (production)
       console.log('🔑 Fetching Deepgram API key from backend...');
       setIsLoadingDeepgramKey(true);
       interviewService.getDeepgramToken(interviewId)
@@ -239,8 +247,10 @@ export function useInterviewWebSocket(
           // CRITICAL: Clear processing state - next question has arrived
           setIsProcessingAnswer(false);
           onQuestion?.(message.question);
-          setTranscript('');
-          transcriptRef.current = '';
+          // Don't clear transcript here - let the UI handle it when displaying the new question
+          // The transcript will be cleared naturally when the new question is added to the UI
+          // setTranscript('');
+          // transcriptRef.current = '';
 
           // Play TTS audio if available (will stop mic automatically via onPlay callback)
           if (enableAudioPlayback && message.audio) {
@@ -445,8 +455,10 @@ export function useInterviewWebSocket(
       return;
     }
     sendWebSocketAnswer(answer, code, language);
-    setTranscript('');
-    transcriptRef.current = '';
+    // Don't clear transcript here - let the UI handle it
+    // The transcript is already added in InterviewInterface before calling this
+    // setTranscript('');
+    // transcriptRef.current = '';
   }, [isConnected, sendWebSocketAnswer, onError]);
 
   const sendTextAnswer = useCallback((answer: string) => {

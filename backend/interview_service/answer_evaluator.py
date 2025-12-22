@@ -166,7 +166,8 @@ Rules:
             prompt=prompt,
             model="gemini-2.5-flash-lite",
             max_tokens=1000,
-            temperature=0.3
+            temperature=0.3,
+            interview_id=state.interview_id if state else None  # Pass interview_id for BYOK support
         )
         
         if response:
@@ -305,7 +306,8 @@ Return only valid JSON:"""
             prompt=prompt,
             model="gemini-2.5-flash-lite",
             max_tokens=1500,
-            temperature=0.3
+            temperature=0.3,
+            interview_id=state.interview_id if state else None  # Pass interview_id for BYOK support
         )
         
         if response:

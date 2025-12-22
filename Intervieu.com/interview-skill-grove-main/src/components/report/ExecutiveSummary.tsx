@@ -107,9 +107,6 @@ const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <h2 className="text-2xl lg:text-3xl font-bold">Interview Report</h2>
-                <Badge className={badge.color} variant={badge.variant}>
-                  {badge.label}
-                </Badge>
               </div>
               <p className="text-lg text-muted-foreground">
                 {role.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} • {formattedDate}

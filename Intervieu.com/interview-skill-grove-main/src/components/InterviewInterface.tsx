@@ -10,6 +10,7 @@ import { User, Bot, Code, Settings, X, Phone, Mic, MicOff, Volume2, VolumeX, Loa
 import VideoFeed from './ui/VideoFeed';
 import { useToast } from "@/hooks/use-toast";
 import { useInterviewWebSocket } from '@/hooks/useInterviewWebSocket';
+import MarkdownRenderer from './ui/MarkdownRenderer';
 import { interviewService } from '@/services/interviewService';
 import CodeMirror from '@uiw/react-codemirror';
 import { python } from '@codemirror/lang-python';
@@ -108,12 +109,17 @@ const InterviewInterface: React.FC<InterviewInterfaceProps> = ({ interviewId }) 
   } = useInterviewWebSocket({
     interviewId,
     onQuestion: (question) => {
-      // Add question to transcript
-      setTranscript(prev => [...prev, {
-        speaker: 'Interviewer',
-        text: question.question,
-        timestamp: new Date(),
-      }]);
+      // When a new question arrives, clear any interim transcripts but keep final answers
+      setTranscript(prev => {
+        // Remove any interim transcripts (ending with "...")
+        const cleaned = prev.filter(item => !(item.speaker === 'You' && item.text.endsWith('...')));
+        // Add the new question
+        return [...cleaned, {
+          speaker: 'Interviewer',
+          text: question.question,
+          timestamp: new Date(),
+        }];
+      });
       
       // Scroll to bottom
       setTimeout(() => {
@@ -124,73 +130,70 @@ const InterviewInterface: React.FC<InterviewInterfaceProps> = ({ interviewId }) 
       // Don't show evaluation to candidate - evaluation is for backend/internal use only
       // Answer evaluated (not shown to candidate) - score, feedback, strengths, weaknesses
     },
-    // TODO: Re-enable live transcription display later
-    // onTranscript: (text, isFinal) => {
-    //   // Update transcript with user's speech - accumulate in same chat bubble
-    //   if (text) {
-    //     setTranscript(prev => {
-    //       // Find the last "You" transcript item (which might be interim)
-    //       const lastYouIndex = prev.length - 1;
-    //       let foundInterimIndex = -1;
-    //       
-    //       // Search backwards to find the last "You" item
-    //       for (let i = prev.length - 1; i >= 0; i--) {
-    //         if (prev[i].speaker === 'You') {
-    //           if (prev[i].text.endsWith('...')) {
-    //             foundInterimIndex = i;
-    //           }
-    //           break; // Found the last "You" item, stop searching
-    //         }
-    //       }
-    //       
-    //       if (isFinal) {
-    //         // Final transcript - replace interim item or add new final entry
-    //         if (foundInterimIndex >= 0) {
-    //           // Replace interim item with final version
-    //           const updated = [...prev];
-    //           updated[foundInterimIndex] = {
-    //             speaker: 'You',
-    //             text: text,
-    //             timestamp: new Date(),
-    //           };
-    //           return updated;
-    //         } else {
-    //           // No interim item found, add as new final entry
-    //           return [...prev, {
-    //             speaker: 'You',
-    //             text: text,
-    //             timestamp: new Date(),
-    //           }];
-    //         }
-    //       } else {
-    //         // Interim transcript - update existing interim item in place or add new one
-    //         if (foundInterimIndex >= 0) {
-    //           // Update existing interim item in place
-    //           const updated = [...prev];
-    //           updated[foundInterimIndex] = {
-    //             speaker: 'You',
-    //             text: text + '...',
-    //             timestamp: new Date(),
-    //           };
-    //           return updated;
-    //         } else {
-    //           // No interim item found, add new interim entry
-    //           return [...prev, {
-    //             speaker: 'You',
-    //             text: text + '...',
-    //             timestamp: new Date(),
-    //           }];
-    //         }
-    //       }
-    //     });
-    //     
-    //     // Scroll to bottom
-    //     setTimeout(() => {
-    //       transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    //     }, 100);
-    //   }
-    // },
-    onTranscript: undefined, // Disabled - live transcription display temporarily disabled
+    onTranscript: (text, isFinal) => {
+      // Update transcript with user's speech - accumulate in same chat bubble
+      if (text) {
+        setTranscript(prev => {
+          // Find the last "You" transcript item (which might be interim)
+          let foundInterimIndex = -1;
+          
+          // Search backwards to find the last "You" item
+          for (let i = prev.length - 1; i >= 0; i--) {
+            if (prev[i].speaker === 'You') {
+              if (prev[i].text.endsWith('...')) {
+                foundInterimIndex = i;
+              }
+              break; // Found the last "You" item, stop searching
+            }
+          }
+          
+          if (isFinal) {
+            // Final transcript - replace interim item or add new final entry
+            if (foundInterimIndex >= 0) {
+              // Replace interim item with final version
+              const updated = [...prev];
+              updated[foundInterimIndex] = {
+                speaker: 'You',
+                text: text,
+                timestamp: new Date(),
+              };
+              return updated;
+            } else {
+              // No interim item found, add as new final entry
+              return [...prev, {
+                speaker: 'You',
+                text: text,
+                timestamp: new Date(),
+              }];
+            }
+          } else {
+            // Interim transcript - update existing interim item in place or add new one
+            if (foundInterimIndex >= 0) {
+              // Update existing interim item in place
+              const updated = [...prev];
+              updated[foundInterimIndex] = {
+                speaker: 'You',
+                text: text + '...',
+                timestamp: new Date(),
+              };
+              return updated;
+            } else {
+              // No interim item found, add new interim entry
+              return [...prev, {
+                speaker: 'You',
+                text: text + '...',
+                timestamp: new Date(),
+              }];
+            }
+          }
+        });
+        
+        // Scroll to bottom
+        setTimeout(() => {
+          transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      }
+    },
     onCompleted: () => {
       toast({
         title: "Interview Completed",
@@ -313,12 +316,23 @@ const InterviewInterface: React.FC<InterviewInterfaceProps> = ({ interviewId }) 
     setIsSubmitting(true);
 
     if (isCodeEditorOpen && codeAnswer.trim()) {
-      // Submit code answer - KEEP code in editor, just close it
+      // Submit code answer - add to transcript first, then send
+      const codeText = `\`\`\`${selectedLanguage}\n${codeAnswer}\n\`\`\``;
+      setTranscript(prev => [...prev, {
+        speaker: 'You',
+        text: codeText,
+        timestamp: new Date(),
+      }]);
       sendCodeAnswer(codeAnswer, selectedLanguage);
       // DON'T clear: setCodeAnswer('');
       setIsCodeEditorOpen(false);
     } else if (currentAnswer.trim()) {
-      // Submit text answer
+      // Submit text answer - add to transcript first, then send
+      setTranscript(prev => [...prev, {
+        speaker: 'You',
+        text: currentAnswer,
+        timestamp: new Date(),
+      }]);
       sendTextAnswer(currentAnswer);
       setCurrentAnswer('');
     }
@@ -337,6 +351,13 @@ const InterviewInterface: React.FC<InterviewInterfaceProps> = ({ interviewId }) 
     }
 
     setIsSubmitting(true);
+    // Add code to transcript first, then send
+    const codeText = `\`\`\`${selectedLanguage}\n${codeAnswer}\n\`\`\``;
+    setTranscript(prev => [...prev, {
+      speaker: 'You',
+      text: codeText,
+      timestamp: new Date(),
+    }]);
     sendCodeAnswer(codeAnswer, selectedLanguage);
     // DON'T clear code - let it stay for review
     // setCodeAnswer('');
@@ -518,9 +539,10 @@ const InterviewInterface: React.FC<InterviewInterfaceProps> = ({ interviewId }) 
                     
                     {/* Question Display with Rich Formatting */}
                     <div className='bg-white dark:bg-slate-800 p-4 md:p-6 rounded-lg shadow-sm'>
-                      <div className='whitespace-pre-wrap text-sm md:text-base leading-relaxed space-y-3'>
-                        {currentQuestion?.question || 'Loading question...'}
-                      </div>
+                      <MarkdownRenderer 
+                        content={currentQuestion?.question || 'Loading question...'}
+                        className="text-sm md:text-base"
+                      />
                     </div>
                   </div>
                   
@@ -597,9 +619,16 @@ const InterviewInterface: React.FC<InterviewInterfaceProps> = ({ interviewId }) 
                       transcript.map((item, index) => (
                         <div key={index} className={`flex items-start gap-3 ${item.speaker === 'You' ? 'flex-row-reverse' : ''}`}>
                             <div className={`rounded-lg p-3 md:p-4 max-w-[80%] ${item.speaker === 'You' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-                                <div className="text-sm md:text-base whitespace-pre-wrap font-mono">
-                                  {item.text}
-                                </div>
+                                {item.speaker === 'Interviewer' ? (
+                                  <MarkdownRenderer 
+                                    content={item.text}
+                                    className="text-sm md:text-base"
+                                  />
+                                ) : (
+                                  <div className="text-sm md:text-base whitespace-pre-wrap">
+                                    {item.text}
+                                  </div>
+                                )}
                                 <p className="text-xs opacity-70 mt-1">
                                   {item.timestamp.toLocaleTimeString()}
                                 </p>

@@ -1,10 +1,12 @@
 
 import React from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import EmailVerificationGuard from './EmailVerificationGuard';
 
 const ProtectedRoute: React.FC = () => {
   const { currentUser, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -21,7 +23,26 @@ const ProtectedRoute: React.FC = () => {
     return <Navigate to="/login" replace />;
   }
 
-  return <Outlet />;
+  // Allow access to verify-email page without verification
+  if (location.pathname === '/verify-email') {
+    return <Outlet />;
+  }
+
+  // For interview pages, show warning but allow access (users might be in middle of interview)
+  if (location.pathname.startsWith('/interview')) {
+    return (
+      <EmailVerificationGuard showWarning={true}>
+        <Outlet />
+      </EmailVerificationGuard>
+    );
+  }
+
+  // For other pages, require verification but allow skip
+  return (
+    <EmailVerificationGuard showWarning={false}>
+      <Outlet />
+    </EmailVerificationGuard>
+  );
 };
 
 export default ProtectedRoute;
