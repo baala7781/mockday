@@ -19,10 +19,14 @@ interface QuestionBreakdownTableProps {
 
 const QuestionBreakdownTable: React.FC<QuestionBreakdownTableProps> = ({ questions, answers }) => {
   const [expandedIndex, setExpandedIndex] = React.useState<number | null>(null);
+  const [showAll, setShowAll] = React.useState(false);
 
   if (!questions || questions.length === 0) {
     return null;
   }
+
+  // Show only first 5 questions by default, or all if showAll is true
+  const displayQuestions = showAll ? questions : questions.slice(0, 5);
 
   const getQuestionIcon = (question: string) => {
     const lowerQ = question.toLowerCase();
@@ -67,23 +71,36 @@ const QuestionBreakdownTable: React.FC<QuestionBreakdownTableProps> = ({ questio
   return (
     <Card>
       <CardContent className="pt-6">
-        <h3 className="text-2xl font-bold mb-6">Question-by-Question Analysis</h3>
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-2xl font-bold">Question-by-Question Analysis</h3>
+          {questions.length > 5 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAll(!showAll)}
+            >
+              {showAll ? 'Show Less' : `Show All (${questions.length})`}
+            </Button>
+          )}
+        </div>
 
         <div className="space-y-3">
-          {questions.map((question, index) => {
-            const answer = answers[index] || 'Answer provided';
-            const score = extractScore(answer, index);
-            const isExpanded = expandedIndex === index;
+          {displayQuestions.map((question, displayIndex) => {
+            // Get original index for proper numbering (questions array index)
+            const originalIndex = showAll ? displayIndex : displayIndex;
+            const answer = answers[originalIndex] || 'Answer provided';
+            const score = extractScore(answer, originalIndex);
+            const isExpanded = expandedIndex === originalIndex;
 
             return (
               <div
-                key={index}
+                key={originalIndex}
                 className="border border-border rounded-lg overflow-hidden transition-all hover:border-primary/50"
               >
                 {/* Question Header */}
                 <div
                   className="p-4 bg-muted/30 cursor-pointer flex items-start gap-3"
-                  onClick={() => toggleExpand(index)}
+                  onClick={() => toggleExpand(originalIndex)}
                 >
                   <div className="flex-shrink-0 mt-1">
                     {getQuestionIcon(question)}
@@ -92,7 +109,7 @@ const QuestionBreakdownTable: React.FC<QuestionBreakdownTableProps> = ({ questio
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-3 mb-1">
                       <h4 className="font-medium text-sm leading-tight">
-                        <span className="text-muted-foreground mr-2">Q{index + 1}.</span>
+                        <span className="text-muted-foreground mr-2">Q{originalIndex + 1}.</span>
                         {question}
                       </h4>
                       {getScoreBadge(score)}
@@ -105,7 +122,7 @@ const QuestionBreakdownTable: React.FC<QuestionBreakdownTableProps> = ({ questio
                     className="flex-shrink-0"
                     onClick={(e) => {
                       e.stopPropagation();
-                      toggleExpand(index);
+                      toggleExpand(originalIndex);
                     }}
                   >
                     {isExpanded ? (

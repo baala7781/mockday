@@ -8,6 +8,7 @@ export interface StartInterviewRequest {
   role: 'frontend-developer' | 'backend-developer' | 'fullstack-developer' | 'data-scientist' | 'devops-engineer';
   resume_id?: string;
   resume_text?: string;
+  byok_openrouter_key?: string; // BYOK: OpenRouter API key (not stored, used only for this interview)
 }
 
 export interface StartInterviewResponse {

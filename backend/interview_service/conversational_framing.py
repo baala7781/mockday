@@ -115,7 +115,8 @@ Generate ONLY the transition text, no additional explanation:"""
             prompt=prompt,
             model="gemini-2.5-flash-lite",
             max_tokens=100,
-            temperature=0.7
+            temperature=0.7,
+            interview_id=state.interview_id  # Pass interview_id for BYOK support
         )
         
         if response:

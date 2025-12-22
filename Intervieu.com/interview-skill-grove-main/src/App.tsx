@@ -16,6 +16,7 @@ import Report from "./pages/Report";
 import NotFound from "./pages/NotFound";
 import LoginPage from "./pages/Login";
 import SignupPage from "./pages/Signup";
+import VerifyEmailPage from "./pages/VerifyEmail";
 import StartInterview from "./pages/StartInterview";
 import ProfilePage from "./pages/ProfilePage";
 import ProfileSetup from "./pages/ProfileSetup";
@@ -37,6 +38,7 @@ const App = () => (
             <Route element={<Layout />}>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
+              <Route path="/verify-email" element={<VerifyEmailPage />} />
               <Route path="/" element={<Index />} />
 
               {/* Protected routes with Layout */}

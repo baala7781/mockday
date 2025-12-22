@@ -1,4 +1,4 @@
-"""Google Gemini client for LLM interactions."""
+"""Google Gemini client for LLM interactions with OpenRouter fallback."""
 import google.generativeai as genai
 from shared.providers.pool_manager import provider_pool_manager, ProviderType
 from typing import Optional, Dict, Any, AsyncGenerator
@@ -7,6 +7,14 @@ import asyncio
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Try to import OpenRouter client (optional dependency)
+try:
+    from shared.providers.openrouter_client import openrouter_client
+    OPENROUTER_AVAILABLE = True
+except ImportError:
+    OPENROUTER_AVAILABLE = False
+    openrouter_client = None
 
 
 class GeminiClientWrapper:
@@ -18,27 +26,93 @@ class GeminiClientWrapper:
         model: str = "gemini-2.5-flash-lite",
         stream: bool = False,
         temperature: float = 0.7,
-        max_tokens: int = 1000
+        max_tokens: int = 1000,
+        use_openrouter_first: bool = True,
+        interview_id: Optional[str] = None  # Optional: If provided, will check for BYOK key
     ) -> Optional[str]:
         """
-        Generate response using Gemini.
+        Generate response using OpenRouter (primary) or Gemini (fallback).
         
         Args:
             prompt: Input prompt
-            model: Model to use (gemini-2.5-flash-lite, gemini-pro, gemini-1.5-pro, etc.)
+            model: Model to use (gemini-2.5-flash-lite, gemini-2.5-flash-lite, gemini-2.0-flash, etc.)
             stream: Whether to stream response (not fully supported yet)
             temperature: Temperature for generation
             max_tokens: Maximum tokens to generate (used as max_output_tokens)
+            use_openrouter_first: Try OpenRouter first (better rate limits), fallback to Gemini
+            interview_id: Optional interview ID to check for BYOK OpenRouter key
             
         Returns:
             Generated text or None on error
         """
+        # Check for BYOK OpenRouter key if interview_id is provided
+        byok_key = None
+        if interview_id:
+            try:
+                from shared.db.redis_client import redis_client
+                redis_key = f"interview:{interview_id}:byok_openrouter"
+                logger.info(f"🔍 Checking for BYOK key in Redis: {redis_key}")
+                
+                # Check if Redis is connected
+                if not redis_client.redis:
+                    logger.warning(f"⚠️ Redis not connected, cannot retrieve BYOK key")
+                else:
+                    byok_key = await redis_client.get(redis_key)
+                    logger.info(f"🔍 Redis get() returned: {type(byok_key).__name__ if byok_key else 'None'}, value length: {len(str(byok_key)) if byok_key else 0}")
+                    
+                    if byok_key:
+                        # Ensure it's a string (Redis might return different types)
+                        if isinstance(byok_key, bytes):
+                            byok_key = byok_key.decode('utf-8')
+                        elif not isinstance(byok_key, str):
+                            byok_key = str(byok_key)
+                        logger.info(f"✅ Using BYOK OpenRouter key for interview {interview_id} (key length: {len(byok_key)}, type: {type(byok_key).__name__})")
+                    else:
+                        logger.info(f"ℹ️ No BYOK key found for interview {interview_id} (key: {redis_key}), using default OpenRouter key")
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to get BYOK key from Redis: {e}", exc_info=True)
+        
+        # Try OpenRouter first if available and enabled (better rate limits: 50 RPD vs 20 RPD)
+        # NOTE: Free models on OpenRouter can be rate-limited by Google upstream (shared pool)
+        # If you hit rate limits, the system will automatically fallback to Gemini direct API
+        if use_openrouter_first and OPENROUTER_AVAILABLE:
+            try:
+                # Use BYOK key if available, otherwise use default client
+                openrouter_to_use = None
+                if byok_key:
+                    # Create temporary OpenRouter client with BYOK key
+                    from shared.providers.openrouter_client import OpenRouterClient
+                    openrouter_to_use = OpenRouterClient(api_key=byok_key)
+                    logger.info(f"✅ Created OpenRouter client with BYOK key (key length: {len(byok_key)})")
+                elif openrouter_client:
+                    openrouter_to_use = openrouter_client
+                    logger.debug("Using default OpenRouter client (no BYOK key)")
+                
+                if openrouter_to_use:
+                    # Map Gemini model names to OpenRouter model names
+                    openrouter_model = self._map_gemini_to_openrouter_model(model)
+                    logger.debug(f"Trying OpenRouter first with model: {openrouter_model}")
+                    response = await openrouter_to_use.generate_response(
+                        prompt=prompt,
+                        model=openrouter_model,
+                        max_tokens=max_tokens,
+                        temperature=temperature
+                    )
+                    if response:
+                        logger.debug("✓ OpenRouter response successful")
+                        return response
+                    else:
+                        logger.debug("OpenRouter returned None (likely rate-limited), falling back to Gemini direct API")
+            except Exception as e:
+                logger.debug(f"OpenRouter request failed, falling back to Gemini direct API: {e}")
+        
+        # Fallback to Gemini Official API
         account = await provider_pool_manager.get_account(ProviderType.GEMINI)
         if not account:
             logger.error("No Gemini API account available")
             return None
         
-        logger.debug(f"Using Gemini account for model {model}")
+        logger.debug(f"Using Gemini account for model {model} (fallback)")
         
         try:
             # Configure Gemini with API key
@@ -47,7 +121,11 @@ class GeminiClientWrapper:
                 await provider_pool_manager.mark_error(account, "Empty API key")
                 return None
             
-            genai.configure(api_key=account.api_key)
+            # Configure with REST transport (may help with API version compatibility)
+            genai.configure(
+                api_key=account.api_key,
+                transport="rest"  # Use REST instead of gRPC for better compatibility
+            )
             logger.debug(f"Initializing Gemini model: {model}")
             # GenerativeModel accepts model name without 'models/' prefix
             gemini_model = genai.GenerativeModel(model)
@@ -185,6 +263,33 @@ class GeminiClientWrapper:
         
         cleaned_profile = convert_dates(profile)
         return json.dumps(cleaned_profile, indent=2)
+    
+    def _map_gemini_to_openrouter_model(self, gemini_model: str) -> str:
+        """
+        Map Gemini model names to OpenRouter model names.
+        Uses the configured OpenRouter model preference (can be Gemini, GPT, Claude, etc.)
+        
+        Args:
+            gemini_model: Gemini model name (e.g., "gemini-2.5-flash-lite")
+            
+        Returns:
+            OpenRouter model name (e.g., "google/gemini-2.0-flash-exp:free" or "openai/gpt-3.5-turbo:free")
+        """
+        # Check if OpenRouter has a preferred model configured
+        if OPENROUTER_AVAILABLE and openrouter_client:
+            # Use OpenRouter's default model (which respects OPENROUTER_MODEL_PREFERENCE env var)
+            return openrouter_client.default_model
+        
+        # Fallback: Map Gemini models to OpenRouter Gemini equivalents
+        model_mapping = {
+            "gemini-2.5-flash-lite": "google/gemini-2.0-flash-exp:free",
+            "gemini-2.5-flash": "google/gemini-2.5-flash",
+            "gemini-2.0-flash": "google/gemini-2.0-flash-exp:free",
+            "gemini-1.5-flash": "google/gemini-1.5-flash",
+        }
+        
+        # Return mapped model or default to free tier Gemini
+        return model_mapping.get(gemini_model, "google/gemini-2.0-flash-exp:free")
 
     async def generate_report(
         self,

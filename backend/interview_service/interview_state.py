@@ -16,7 +16,7 @@ async def create_interview_state(
     role: InterviewRole,
     resume_data: ResumeData,
     skill_weights: list[SkillWeight],
-    max_questions: int = 10
+    max_questions: int = 15
 ) -> InterviewState:
     """
     Create a new interview state.

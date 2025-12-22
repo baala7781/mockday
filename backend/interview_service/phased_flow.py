@@ -112,7 +112,8 @@ Return ONLY the final question text starting with the greeting."""
                 prompt=prompt,
                 model="gemini-2.5-flash-lite",
                 max_tokens=150,
-                temperature=0.85  # Higher temperature for more variety
+                temperature=0.85,  # Higher temperature for more variety
+                interview_id=state.interview_id  # Pass interview_id for BYOK support
             )
             
             logger.info(f"🤖 [Intro Question] Attempt {attempt + 1}: LLM response length: {len(response) if response else 0}")

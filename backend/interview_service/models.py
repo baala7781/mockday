@@ -113,6 +113,7 @@ class StartInterviewRequest(BaseModel):
     role: InterviewRole
     resume_id: Optional[str] = None
     resume_data: Optional[ResumeData] = None
+    byok_openrouter_key: Optional[str] = None  # BYOK: OpenRouter API key (not stored in DB, used only for this interview)
 
 
 class Question(BaseModel):
@@ -162,7 +163,7 @@ class InterviewState(BaseModel):
     current_question: Optional[Question] = None
     questions_asked: List[Question] = Field(default_factory=list)
     total_questions: int = 0
-    max_questions: int = 12  # Increased for phased approach
+    max_questions: int = 15  # Increased for phased approach
     phase_questions: Dict[str, int] = Field(default_factory=dict)  # Track questions per phase
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None

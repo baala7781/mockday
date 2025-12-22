@@ -4,8 +4,9 @@ import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, AlertTriangle, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
+import { FileText, AlertTriangle, CheckCircle2, Loader2, Sparkles, Key, Eye, EyeOff } from 'lucide-react';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { InterviewRole } from '@/lib/types';
 import { useToast } from "@/hooks/use-toast";
@@ -33,6 +34,9 @@ const mapRoleToBackend = (role: InterviewRole): string => {
   return roleMap[role] || 'fullstack-developer';
 };
 
+// Check if BYOK is enabled via config
+const BYOK_ENABLED = import.meta.env.VITE_ENABLE_BYOK === 'true';
+
 const StartInterview: React.FC = () => {
   const [selectedRole, setSelectedRole] = useState<InterviewRole>('software-engineer');
   const [selectedResumeId, setSelectedResumeId] = useState<string>('');
@@ -41,6 +45,29 @@ const StartInterview: React.FC = () => {
   const { currentUser, resumes, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  
+  // BYOK state
+  const [useBYOK, setUseBYOK] = useState(false);
+  const [deepgramKey, setDeepgramKey] = useState('');
+  const [openrouterKey, setOpenrouterKey] = useState('');
+  const [showDeepgramKey, setShowDeepgramKey] = useState(false);
+  const [showOpenrouterKey, setShowOpenrouterKey] = useState(false);
+  
+  // Load saved BYOK keys from localStorage on mount
+  useEffect(() => {
+    if (BYOK_ENABLED) {
+      const savedDeepgram = localStorage.getItem('byok_deepgram_key');
+      const savedOpenrouter = localStorage.getItem('byok_openrouter_key');
+      if (savedDeepgram) {
+        setDeepgramKey(savedDeepgram);
+        setUseBYOK(true);
+      }
+      if (savedOpenrouter) {
+        setOpenrouterKey(savedOpenrouter);
+        setUseBYOK(true);
+      }
+    }
+  }, []);
 
   const handleProceed = async () => {
     if (!currentUser) {
@@ -77,12 +104,33 @@ const StartInterview: React.FC = () => {
       // Map role to backend format
       const backendRole = mapRoleToBackend(selectedRole);
 
+      // Save BYOK keys to localStorage if provided
+      if (BYOK_ENABLED && useBYOK) {
+        if (deepgramKey.trim()) {
+          localStorage.setItem('byok_deepgram_key', deepgramKey.trim());
+        } else {
+          localStorage.removeItem('byok_deepgram_key');
+        }
+        if (openrouterKey.trim()) {
+          localStorage.setItem('byok_openrouter_key', openrouterKey.trim());
+        } else {
+          localStorage.removeItem('byok_openrouter_key');
+        }
+      }
+
       // Start interview via API
-      const response = await interviewService.startInterview({
+      const requestParams: any = {
         user_id: currentUser.uid,
         role: backendRole,
         resume_id: resumeId,
-      });
+      };
+      
+      // Add BYOK OpenRouter key if provided (not stored in backend, used only for this interview)
+      if (BYOK_ENABLED && useBYOK && openrouterKey.trim()) {
+        requestParams.byok_openrouter_key = openrouterKey.trim();
+      }
+      
+      const response = await interviewService.startInterview(requestParams);
 
       console.log('Interview started:', response);
 
@@ -275,6 +323,123 @@ const StartInterview: React.FC = () => {
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
+          )}
+
+          {/* BYOK Section - Only show if enabled */}
+          {BYOK_ENABLED && (
+            <Card className="border-border shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Key className="h-5 w-5" />
+                  Bring Your Own Keys (BYOK)
+                </CardTitle>
+                <CardDescription>
+                  Optional: Use your own API keys for Deepgram and OpenRouter. Keys are stored locally in your browser only.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="use-byok"
+                    checked={useBYOK}
+                    onChange={(e) => setUseBYOK(e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  <Label htmlFor="use-byok" className="cursor-pointer">
+                    Use my own API keys
+                  </Label>
+                </div>
+                
+                {useBYOK && (
+                  <div className="space-y-4 pt-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="deepgram-key">Deepgram API Key</Label>
+                      <div className="relative">
+                        <Input
+                          id="deepgram-key"
+                          type={showDeepgramKey ? "text" : "password"}
+                          placeholder="Enter your Deepgram API key"
+                          value={deepgramKey}
+                          onChange={(e) => setDeepgramKey(e.target.value)}
+                          className="pr-10"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                          onClick={() => setShowDeepgramKey(!showDeepgramKey)}
+                        >
+                          {showDeepgramKey ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Get your key from{' '}
+                        <a
+                          href="https://console.deepgram.com/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          Deepgram Console
+                        </a>
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="openrouter-key">OpenRouter API Key</Label>
+                      <div className="relative">
+                        <Input
+                          id="openrouter-key"
+                          type={showOpenrouterKey ? "text" : "password"}
+                          placeholder="Enter your OpenRouter API key"
+                          value={openrouterKey}
+                          onChange={(e) => setOpenrouterKey(e.target.value)}
+                          className="pr-10"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                          onClick={() => setShowOpenrouterKey(!showOpenrouterKey)}
+                        >
+                          {showOpenrouterKey ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Get your key from{' '}
+                        <a
+                          href="https://openrouter.ai/keys"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          OpenRouter
+                        </a>
+                      </p>
+                    </div>
+                    
+                    <Alert>
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription className="text-xs">
+                        Your API keys are stored locally in your browser only. They are never sent to our servers.
+                        Clear your browser data to remove saved keys.
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           )}
 
           {/* Action Buttons */}

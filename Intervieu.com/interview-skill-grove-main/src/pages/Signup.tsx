@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from "firebase/auth";
 import { auth } from '../firebase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -70,12 +70,30 @@ const SignupPage: React.FC = () => {
         });
       }
 
-      toast({
-        title: "Account created successfully!",
-        description: "Welcome to MockDay. You're all set to start practicing.",
-      });
-      
-      navigate("/dashboard");
+      // Send email verification
+      try {
+        await sendEmailVerification(userCredential.user, {
+          url: window.location.origin + '/verify-email',
+          handleCodeInApp: false, // Open link in browser, not app
+        });
+        console.log("✅ Verification email sent successfully");
+        toast({
+          title: "Account created successfully!",
+          description: "Please check your email to verify your account before continuing.",
+        });
+        navigate("/verify-email");
+      } catch (verificationError: any) {
+        // If email verification fails, still allow signup but show warning
+        console.error("❌ Failed to send verification email:", verificationError);
+        console.error("Error code:", verificationError.code);
+        console.error("Error message:", verificationError.message);
+        toast({
+          title: "Account created successfully!",
+          description: `Email verification failed: ${verificationError.message || 'Please check Firebase Console settings'}`,
+          variant: "default",
+        });
+        navigate("/dashboard");
+      }
     } catch (error: any) {
       let errorMessage = "An error occurred while creating your account. Please try again.";
       

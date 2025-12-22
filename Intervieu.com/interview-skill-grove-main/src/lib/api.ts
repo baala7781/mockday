@@ -118,5 +118,24 @@ export async function uploadResume(token: string, file: File): Promise<{ status:
   return res.json()
 }
 
+export interface EmailVerificationStatus {
+  email: string;
+  emailVerified: boolean;
+  emailVerifiedAt: string | null;
+}
+
+export async function getEmailVerificationStatus(token: string): Promise<EmailVerificationStatus> {
+  const res = await authedFetch('/auth/email-verification-status', token);
+  return res.json();
+}
+
+export async function verifyEmail(token: string): Promise<{ success: boolean; message: string }> {
+  const res = await authedFetch('/auth/verify-email', token, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+  return res.json();
+}
+
 
 
