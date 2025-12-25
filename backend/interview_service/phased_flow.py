@@ -27,9 +27,52 @@ def is_graduate_role(role: InterviewRole) -> bool:
 def should_ask_coding_question(state: InterviewState) -> bool:
     """
     Determine if next question should be a coding question.
-    For graduates: 50-60% coding questions
-    For others: 20-30% coding questions
+    
+    Rules:
+    - Never ask coding questions for non-coding roles (DevOps, Tester, QA, Product Manager, etc.)
+    - Never ask coding questions for experience > 4 years (senior/executive)
+    - Entry level (0-2 years): 50-60% coding questions (similar to graduates)
+    - Mid level (3-5 years): 20-30% coding questions
+    - For graduates (if role-based): 50-60% coding questions (backwards compatibility)
     """
+    # Roles that should NOT get coding questions (check both enum and string value for custom roles)
+    non_coding_role_values = [
+        "devops-engineer",
+        "product-manager",
+        "cloud-engineer",
+        "security-engineer",
+        "tester",
+        "qa-engineer",
+        "qa",
+        "quality-assurance",
+        "quality-assurance-engineer",
+        "test-engineer",
+        "test-automation-engineer",
+    ]
+    
+    # Get role string value (works for both enum and custom roles)
+    role_value = state.role.value if hasattr(state.role, 'value') else str(state.role)
+    role_lower = role_value.lower().strip()
+    
+    # Check if role should exclude coding questions
+    if role_lower in non_coding_role_values or any(ncr in role_lower for ncr in non_coding_role_values):
+        logger.info(f"🚫 Skipping coding question for non-coding role: {role_value}")
+        return False
+    
+    # Also check enum-based exclusion for known roles
+    non_coding_roles = [
+        InterviewRole.DEVOPS_ENGINEER,
+        InterviewRole.PRODUCT_MANAGER,
+        InterviewRole.CLOUD_ENGINEER,
+        InterviewRole.SECURITY_ENGINEER,
+    ]
+    
+    if state.role in non_coding_roles:
+        logger.info(f"🚫 Skipping coding question for non-coding role: {state.role.value}")
+        return False
+    
+    # Check experience level - determine coding question percentage based on experience
+    experience_level = state.experience_level
     total_questions = len(state.questions_asked)
     coding_questions = sum(1 for q in state.questions_asked if q.type == QuestionType.CODING)
     
@@ -38,17 +81,45 @@ def should_ask_coding_question(state: InterviewState) -> bool:
     
     coding_percentage = coding_questions / total_questions if total_questions > 0 else 0
     
+    # Base coding question percentage on experience level
+    if experience_level:
+        # Map experience levels to years
+        experience_years_map = {
+            "entry": 1,      # 0-2 years
+            "mid": 3.5,      # 3-5 years
+            "senior": 8,     # 6-10 years
+            "executive": 12  # 10+ years
+        }
+        
+        years = experience_years_map.get(experience_level, 0)
+        
+        # No coding questions for 4+ years (senior/executive)
+        if years >= 4:
+            logger.info(f"🚫 Skipping coding question for experience level: {experience_level} ({years} years)")
+            return False
+        
+        # Entry level (0-2 years) = 50-60% coding questions (like graduates)
+        if experience_level == "entry":
+            target_percentage = 0.55  # Mid-point of 50-60%
+            threshold = target_percentage + random.uniform(-0.05, 0.05)
+            return coding_percentage < threshold
+        # Mid level (3-5 years) = 20-30% coding questions
+        elif experience_level == "mid":
+            target_percentage = 0.25  # Mid-point of 20-30%
+            threshold = target_percentage + random.uniform(-0.03, 0.03)
+            return coding_percentage < threshold
+    
+    # Fallback: if no experience level, check if it's a graduate role (for backwards compatibility)
     if is_graduate_role(state.role):
         # Target: 50-60% coding for graduates
         target_percentage = 0.55  # Mid-point of 50-60%
-        # Add randomness to avoid strict pattern
         threshold = target_percentage + random.uniform(-0.05, 0.05)
         return coding_percentage < threshold
-    else:
-        # Target: 20-30% coding for experienced roles
-        target_percentage = 0.25
-        threshold = target_percentage + random.uniform(-0.03, 0.03)
-        return coding_percentage < threshold
+    
+    # Default: 20-30% coding for roles without experience level specified
+    target_percentage = 0.25
+    threshold = target_percentage + random.uniform(-0.03, 0.03)
+    return coding_percentage < threshold
 
 
 async def generate_intro_question(state: InterviewState, candidate_name: Optional[str] = None) -> Question:

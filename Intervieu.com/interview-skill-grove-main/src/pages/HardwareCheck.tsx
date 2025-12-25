@@ -18,19 +18,32 @@ const HardwareCheck: React.FC = () => {
   const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
+    
     const checkPermissions = async () => {
       try {
-        streamRef.current = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        
+        // Only update state if component is still mounted
+        if (!isMounted) {
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+        
+        streamRef.current = stream;
         
         // Check for tracks to be more certain
-        setCameraPermission(streamRef.current.getVideoTracks().length > 0);
-        setMicPermission(streamRef.current.getAudioTracks().length > 0);
+        setCameraPermission(stream.getVideoTracks().length > 0);
+        setMicPermission(stream.getAudioTracks().length > 0);
 
         if (videoRef.current) {
-          videoRef.current.srcObject = streamRef.current;
+          videoRef.current.srcObject = stream;
         }
 
       } catch (err) {
+        // Only update state if component is still mounted
+        if (!isMounted) return;
+        
         console.error("Error accessing media devices:", err);
         if (err instanceof DOMException) {
             if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
@@ -52,8 +65,13 @@ const HardwareCheck: React.FC = () => {
     
     // Cleanup function to stop media tracks when component unmounts
     return () => {
+        isMounted = false;
         if (streamRef.current) {
             streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current = null;
+        }
+        if (videoRef.current) {
+          videoRef.current.srcObject = null;
         }
     };
 

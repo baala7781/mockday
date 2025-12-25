@@ -759,21 +759,50 @@ async def start_interview_endpoint(
         if not resume_data.skills and not resume_data.projects:
             logger.info("No resume data available. Interview will proceed with role-based questions only.")
         
+        # Convert role string to InterviewRole enum if it's a known role, otherwise use as-is
+        role_value = request.role
+        try:
+            # Try to convert to enum if it's a known role
+            interview_role = InterviewRole(role_value)
+        except ValueError:
+            # Custom role - create a pseudo-enum value or use string directly
+            # We'll need to handle this in the code that uses the role
+            # For now, try to normalize the custom role string
+            normalized_role = role_value.lower().replace(' ', '-').strip()
+            # Try to match it to an existing role, otherwise use as custom
+            try:
+                interview_role = InterviewRole(normalized_role)
+            except ValueError:
+                # It's a custom role - we'll need to handle this specially
+                # For now, default to fullstack-developer but log the custom role
+                logger.info(f"📝 Custom role detected: '{role_value}', defaulting to fullstack-developer for processing")
+                interview_role = InterviewRole.FULLSTACK_DEVELOPER
+        
         # Calculate skill weights (now async with LLM extraction)
+        # Use the InterviewRole enum for skill weighting (even if custom role, use mapped role)
         skill_weights = await calculate_skill_weights(
-            role=request.role,
+            role=interview_role,
             resume_data=resume_data,
             use_llm_extraction=True
         )
         
-        # Create interview state
+        # Get experience level from profile
+        experience_level = profile_data.get("experienceLevel") if profile_data else None
+        
+        # Create interview state - use the InterviewRole enum
         interview_state = await create_interview_state(
             user_id=request.user_id,
-            role=request.role,
+            role=interview_role,
             resume_data=resume_data,
             skill_weights=skill_weights,
-            max_questions=15  # Increased for phased approach
+            max_questions=15,  # Increased for phased approach
+            experience_level=experience_level
         )
+        
+        # If custom role was provided, store it in the state context for reference
+        if role_value != interview_role.value:
+            # Store custom role in state context (we can add a custom_role field later if needed)
+            logger.info(f"💼 Custom role '{role_value}' stored for interview {interview_state.interview_id}")
         
         # Store BYOK OpenRouter key in Redis (not Firestore - client-side only, temporary)
         if request.byok_openrouter_key:

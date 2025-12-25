@@ -38,7 +38,8 @@ const mapRoleToBackend = (role: InterviewRole): string => {
 const BYOK_ENABLED = import.meta.env.VITE_ENABLE_BYOK === 'true';
 
 const StartInterview: React.FC = () => {
-  const [selectedRole, setSelectedRole] = useState<InterviewRole>('software-engineer');
+  const [selectedRole, setSelectedRole] = useState<InterviewRole | 'custom'>('software-engineer');
+  const [customRole, setCustomRole] = useState<string>('');
   const [selectedResumeId, setSelectedResumeId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -101,8 +102,16 @@ const StartInterview: React.FC = () => {
       // Use selected resume (already parsed and stored)
       const resumeId = selectedResumeId;
 
-      // Map role to backend format
-      const backendRole = mapRoleToBackend(selectedRole);
+      // Map role to backend format (use custom role if selected)
+      const backendRole = selectedRole === 'custom' 
+        ? customRole.trim() 
+        : mapRoleToBackend(selectedRole as InterviewRole);
+      
+      if (!backendRole || backendRole.trim() === '') {
+        setError('Please select a role or enter a custom role.');
+        setIsLoading(false);
+        return;
+      }
 
       // Save BYOK keys to localStorage if provided
       if (BYOK_ENABLED && useBYOK) {
@@ -169,10 +178,15 @@ const StartInterview: React.FC = () => {
               <CardTitle>Select Interview Role</CardTitle>
               <CardDescription>Choose the role you want to practice for</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <Select 
                 value={selectedRole} 
-                onValueChange={(value) => setSelectedRole(value as InterviewRole)}
+                onValueChange={(value) => {
+                  setSelectedRole(value as InterviewRole | 'custom');
+                  if (value !== 'custom') {
+                    setCustomRole(''); // Clear custom role when selecting predefined
+                  }
+                }}
               >
                 <SelectTrigger className="w-full h-12">
                   <SelectValue />
@@ -203,29 +217,9 @@ const StartInterview: React.FC = () => {
                       <span>Data Scientist</span>
                     </div>
                   </SelectItem>
-                  <SelectItem value="data-science">
-                    <div className="flex items-center gap-2">
-                      <span>Data Science</span>
-                    </div>
-                  </SelectItem>
                   <SelectItem value="data-engineer">
                     <div className="flex items-center gap-2">
                       <span>Data Engineer</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="graduate">
-                    <div className="flex items-center gap-2">
-                      <span>Graduate</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="graduate-data-engineer">
-                    <div className="flex items-center gap-2">
-                      <span>Graduate Data Engineer</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="graduate-data-scientist">
-                    <div className="flex items-center gap-2">
-                      <span>Graduate Data Scientist</span>
                     </div>
                   </SelectItem>
                   <SelectItem value="devops-engineer">
@@ -253,8 +247,29 @@ const StartInterview: React.FC = () => {
                       <span>Product Manager</span>
                     </div>
                   </SelectItem>
+                  <SelectItem value="custom">
+                    <div className="flex items-center gap-2">
+                      <span>Custom Role (Type your own)</span>
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
+              
+              {selectedRole === 'custom' && (
+                <div className="space-y-2">
+                  <Label htmlFor="custom-role">Enter Custom Role</Label>
+                  <Input
+                    id="custom-role"
+                    value={customRole}
+                    onChange={(e) => setCustomRole(e.target.value)}
+                    placeholder="e.g., QA Engineer, Technical Writer, Solutions Architect"
+                    className="w-full"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter the role you want to practice for
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 

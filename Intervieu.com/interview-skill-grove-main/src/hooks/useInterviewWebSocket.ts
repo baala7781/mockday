@@ -162,13 +162,15 @@ export function useInterviewWebSocket(
       // Update last activity time
       lastActivityRef.current = Date.now();
       
-      // Update local transcript state for display (if we re-enable live display later)
+      // Accumulate transcript internally (for backend submission) but don't display live
+      // Only store final transcripts - we'll display after recording stops
       if (isFinal) {
-        setTranscript(prev => prev ? `${prev} ${text}` : text);
         transcriptRef.current = transcriptRef.current ? `${transcriptRef.current} ${text}` : text;
+        // Update internal state for submission, but don't call onTranscript callback
+        // The callback will only be called when recording stops
       }
-      // Call callback if provided (currently disabled in InterviewInterface)
-      onTranscript?.(text, isFinal);
+      // DON'T call onTranscript here - we only show transcript after recording stops
+      // This prevents creating multiple bubbles during live speech recognition
     },
     onAudioActivity: () => {
       // Update last activity time when audio is being sent to Deepgram
@@ -423,6 +425,10 @@ export function useInterviewWebSocket(
       // Set processing state to disable "Start Answering" button until next question arrives
       setIsProcessingAnswer(true);
       
+      // Display the final answer in the UI (single bubble, only after recording stops)
+      // This is the only time we show the transcript to the user
+      onTranscript?.(currentTranscript.trim(), true);
+      
       sendMessage({
         type: 'submit_answer',
         data: {
@@ -431,7 +437,7 @@ export function useInterviewWebSocket(
         }
       });
       
-      // Clear local transcript
+      // Clear local transcript storage (for next answer)
       setTranscript('');
       transcriptRef.current = '';
     } else if (!currentTranscript) {
@@ -439,7 +445,7 @@ export function useInterviewWebSocket(
       onError?.('No audio was captured. Please try again.');
     }
 
-  }, [interviewId, isRecording, deepgramTranscript, transcript, stopDeepgramRecording, isConnected, sendMessage, onError]);
+  }, [interviewId, isRecording, deepgramTranscript, transcript, stopDeepgramRecording, isConnected, sendMessage, onError, onTranscript]);
 
   // Stop mic when interview completes
   useEffect(() => {
@@ -447,6 +453,16 @@ export function useInterviewWebSocket(
       stopRecording();
     }
   }, [isInterviewCompleted, stopRecording]);
+
+  // Cleanup ping interval on unmount
+  useEffect(() => {
+    return () => {
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
+        pingIntervalRef.current = null;
+      }
+    };
+  }, []);
 
   // Send answer (for text/code submission)
   const sendAnswer = useCallback((answer: string, code?: string, language?: string) => {
