@@ -110,7 +110,7 @@ class SkillWeight(BaseModel):
 class StartInterviewRequest(BaseModel):
     """Start interview request."""
     user_id: str
-    role: InterviewRole
+    role: str  # Can be InterviewRole enum value or custom role string
     resume_id: Optional[str] = None
     resume_data: Optional[ResumeData] = None
     byok_openrouter_key: Optional[str] = None  # BYOK: OpenRouter API key (not stored in DB, used only for this interview)
@@ -172,6 +172,7 @@ class InterviewState(BaseModel):
     conversation_history: List[Dict[str, Any]] = Field(default_factory=list)  # Last N QA pairs
     max_context_pairs: int = 5  # Keep last 5 QA pairs for context
     report_id: Optional[str] = None  # Report ID after interview completion
+    experience_level: Optional[str] = None  # User's experience level (entry, mid, senior, executive)
 
 
 class SkillWeightResponse(BaseModel):

@@ -5,7 +5,7 @@ import { getAuth } from 'firebase/auth';
 
 export interface StartInterviewRequest {
   user_id: string;
-  role: 'frontend-developer' | 'backend-developer' | 'fullstack-developer' | 'data-scientist' | 'devops-engineer';
+  role: string; // Can be predefined role or custom role string
   resume_id?: string;
   resume_text?: string;
   byok_openrouter_key?: string; // BYOK: OpenRouter API key (not stored, used only for this interview)

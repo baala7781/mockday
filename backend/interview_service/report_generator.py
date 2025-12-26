@@ -179,6 +179,11 @@ def calculate_overall_score(state: InterviewState) -> float:
     """
     Calculate overall interview score with completion penalty.
     
+    The score is calculated as:
+    - Base score: Average of all evaluation scores
+    - Completion factor: Multiplied by completion ratio (questions answered / expected)
+    - Minimum threshold: At least 80% completion for full score consideration
+    
     Args:
         state: Interview state
         
@@ -194,21 +199,35 @@ def calculate_overall_score(state: InterviewState) -> float:
     if not all_scores:
         return 0.0
     
-    raw_score = sum(all_scores) / len(all_scores)
+    # Base score: Average of all answer evaluations
+    base_score = sum(all_scores) / len(all_scores)
     
-    # Apply completion penalty for incomplete interviews
+    # Calculate completion ratio
     questions_answered = len(state.questions_asked)
-    expected_questions = state.total_questions or 10
-    completion_ratio = min(1.0, questions_answered / expected_questions)
+    expected_questions = state.total_questions or 15
+    completion_ratio = min(1.0, questions_answered / expected_questions) if expected_questions > 0 else 0.0
     
-    # If interview is less than 50% complete, cap score at 60%
+    # Apply completion factor: Score is multiplied by completion ratio
+    # This ensures that answering 2/15 questions correctly doesn't give 85%
+    # Instead, if you answered 2/15 (13% completion) and got perfect scores,
+    # your overall score would be: base_score * 0.13
+    adjusted_score = base_score * completion_ratio
+    
+    # Additional penalty for very incomplete interviews
+    # If less than 50% complete, apply additional penalty
     if completion_ratio < 0.5:
-        raw_score = min(raw_score, 0.60)
-    # If interview is less than 75% complete, cap score at 75%
+        # Cap at 60% of base score for very incomplete interviews
+        adjusted_score = min(adjusted_score, base_score * 0.6)
     elif completion_ratio < 0.75:
-        raw_score = min(raw_score, 0.75)
+        # Cap at 80% of base score for partially complete interviews
+        adjusted_score = min(adjusted_score, base_score * 0.8)
     
-    return raw_score
+    # Ensure score doesn't exceed base_score (can't get more than 100% of what you answered)
+    final_score = min(adjusted_score, base_score)
+    
+    logger.info(f"📊 Score calculation: base={base_score:.2f}, completion={completion_ratio:.2f} ({questions_answered}/{expected_questions}), final={final_score:.2f}")
+    
+    return final_score
 
 
 async def generate_interview_report(

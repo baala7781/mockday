@@ -16,7 +16,8 @@ async def create_interview_state(
     role: InterviewRole,
     resume_data: ResumeData,
     skill_weights: list[SkillWeight],
-    max_questions: int = 15
+    max_questions: int = 15,
+    experience_level: Optional[str] = None
 ) -> InterviewState:
     """
     Create a new interview state.
@@ -27,6 +28,7 @@ async def create_interview_state(
         resume_data: Resume data
         skill_weights: Calculated skill weights
         max_questions: Maximum number of questions
+        experience_level: User's experience level (entry, mid, senior, executive)
         
     Returns:
         Interview state
@@ -49,7 +51,8 @@ async def create_interview_state(
         phase_questions={},
         interview_duration_minutes=30,  # Default 30 minutes
         conversation_history=[],  # Empty initially
-        max_context_pairs=5  # Keep last 5 QA pairs
+        max_context_pairs=5,  # Keep last 5 QA pairs
+        experience_level=experience_level
     )
     
     # Save to Redis

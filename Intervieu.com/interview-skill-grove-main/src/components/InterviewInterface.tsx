@@ -121,6 +121,9 @@ const InterviewInterface: React.FC<InterviewInterfaceProps> = ({ interviewId }) 
         }];
       });
       
+      // Clear submitting state when new question arrives
+      setIsSubmitting(false);
+      
       // Scroll to bottom
       setTimeout(() => {
         transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -131,60 +134,29 @@ const InterviewInterface: React.FC<InterviewInterfaceProps> = ({ interviewId }) 
       // Answer evaluated (not shown to candidate) - score, feedback, strengths, weaknesses
     },
     onTranscript: (text, isFinal) => {
-      // Update transcript with user's speech - accumulate in same chat bubble
-      if (text) {
+      // Only show transcript when recording stops (isFinal = true)
+      // This prevents multiple bubbles - single bubble per answer
+      if (isFinal && text) {
         setTranscript(prev => {
-          // Find the last "You" transcript item (which might be interim)
-          let foundInterimIndex = -1;
+          // Check if there's already a "You" item for this answer (shouldn't happen, but just in case)
+          const hasRecentAnswer = prev.length > 0 && prev[prev.length - 1].speaker === 'You';
           
-          // Search backwards to find the last "You" item
-          for (let i = prev.length - 1; i >= 0; i--) {
-            if (prev[i].speaker === 'You') {
-              if (prev[i].text.endsWith('...')) {
-                foundInterimIndex = i;
-              }
-              break; // Found the last "You" item, stop searching
-            }
-          }
-          
-          if (isFinal) {
-            // Final transcript - replace interim item or add new final entry
-            if (foundInterimIndex >= 0) {
-              // Replace interim item with final version
-              const updated = [...prev];
-              updated[foundInterimIndex] = {
-                speaker: 'You',
-                text: text,
-                timestamp: new Date(),
-              };
-              return updated;
-            } else {
-              // No interim item found, add as new final entry
-              return [...prev, {
-                speaker: 'You',
-                text: text,
-                timestamp: new Date(),
-              }];
-            }
+          if (!hasRecentAnswer) {
+            // Add the answer as a single bubble
+            return [...prev, {
+              speaker: 'You',
+              text: text,
+              timestamp: new Date(),
+            }];
           } else {
-            // Interim transcript - update existing interim item in place or add new one
-            if (foundInterimIndex >= 0) {
-              // Update existing interim item in place
-              const updated = [...prev];
-              updated[foundInterimIndex] = {
-                speaker: 'You',
-                text: text + '...',
-                timestamp: new Date(),
-              };
-              return updated;
-            } else {
-              // No interim item found, add new interim entry
-              return [...prev, {
-                speaker: 'You',
-                text: text + '...',
-                timestamp: new Date(),
-              }];
-            }
+            // Update the last answer if it exists
+            const updated = [...prev];
+            updated[updated.length - 1] = {
+              speaker: 'You',
+              text: text,
+              timestamp: new Date(),
+            };
+            return updated;
           }
         });
         
@@ -303,7 +275,7 @@ const InterviewInterface: React.FC<InterviewInterfaceProps> = ({ interviewId }) 
     }
   };
 
-  const handleSubmitAnswer = () => {
+  const handleSubmitAnswer = async () => {
     if (!currentAnswer.trim() && !codeAnswer.trim()) {
       toast({
         variant: "destructive",
@@ -315,32 +287,42 @@ const InterviewInterface: React.FC<InterviewInterfaceProps> = ({ interviewId }) 
 
     setIsSubmitting(true);
 
-    if (isCodeEditorOpen && codeAnswer.trim()) {
-      // Submit code answer - add to transcript first, then send
-      const codeText = `\`\`\`${selectedLanguage}\n${codeAnswer}\n\`\`\``;
-      setTranscript(prev => [...prev, {
-        speaker: 'You',
-        text: codeText,
-        timestamp: new Date(),
-      }]);
-      sendCodeAnswer(codeAnswer, selectedLanguage);
-      // DON'T clear: setCodeAnswer('');
-      setIsCodeEditorOpen(false);
-    } else if (currentAnswer.trim()) {
-      // Submit text answer - add to transcript first, then send
-      setTranscript(prev => [...prev, {
-        speaker: 'You',
-        text: currentAnswer,
-        timestamp: new Date(),
-      }]);
-      sendTextAnswer(currentAnswer);
-      setCurrentAnswer('');
+    try {
+      if (isCodeEditorOpen && codeAnswer.trim()) {
+        // Submit code answer - add to transcript first, then send
+        const codeText = `\`\`\`${selectedLanguage}\n${codeAnswer}\n\`\`\``;
+        setTranscript(prev => [...prev, {
+          speaker: 'You',
+          text: codeText,
+          timestamp: new Date(),
+        }]);
+        sendCodeAnswer(codeAnswer, selectedLanguage);
+        // DON'T clear: setCodeAnswer('');
+        setIsCodeEditorOpen(false);
+      } else if (currentAnswer.trim()) {
+        // Submit text answer - add to transcript first, then send
+        setTranscript(prev => [...prev, {
+          speaker: 'You',
+          text: currentAnswer,
+          timestamp: new Date(),
+        }]);
+        sendTextAnswer(currentAnswer);
+        setCurrentAnswer('');
+      }
+      // Note: isSubmitting will be reset when next question arrives or on error
+      // Don't set to false immediately - let the WebSocket hook handle it
+    } catch (error) {
+      console.error('Error submitting answer:', error);
+      setIsSubmitting(false);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to submit answer. Please try again.",
+      });
     }
-
-    setIsSubmitting(false);
   };
 
-  const handleSubmitCode = () => {
+  const handleSubmitCode = async () => {
     if (!codeAnswer.trim()) {
       toast({
         variant: "destructive",
@@ -351,18 +333,30 @@ const InterviewInterface: React.FC<InterviewInterfaceProps> = ({ interviewId }) 
     }
 
     setIsSubmitting(true);
-    // Add code to transcript first, then send
-    const codeText = `\`\`\`${selectedLanguage}\n${codeAnswer}\n\`\`\``;
-    setTranscript(prev => [...prev, {
-      speaker: 'You',
-      text: codeText,
-      timestamp: new Date(),
-    }]);
-    sendCodeAnswer(codeAnswer, selectedLanguage);
-    // DON'T clear code - let it stay for review
-    // setCodeAnswer('');
-    setIsCodeEditorOpen(false); // Close editor but keep code
-    setIsSubmitting(false);
+    
+    try {
+      // Add code to transcript first, then send
+      const codeText = `\`\`\`${selectedLanguage}\n${codeAnswer}\n\`\`\``;
+      setTranscript(prev => [...prev, {
+        speaker: 'You',
+        text: codeText,
+        timestamp: new Date(),
+      }]);
+      sendCodeAnswer(codeAnswer, selectedLanguage);
+      // DON'T clear code - let it stay for review
+      // setCodeAnswer('');
+      setIsCodeEditorOpen(false); // Close editor but keep code
+      // Note: isSubmitting will be reset when next question arrives or on error
+      // Don't set to false immediately - let the WebSocket hook handle it
+    } catch (error) {
+      console.error('Error submitting code:', error);
+      setIsSubmitting(false);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to submit code. Please try again.",
+      });
+    }
   };
 
   // Progress is shown as "X of Y questions" instead of percentage
