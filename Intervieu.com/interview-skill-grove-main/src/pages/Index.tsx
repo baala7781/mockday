@@ -26,7 +26,8 @@ const features = [
   {
     icon: Shield,
     title: 'Malpractice Detection',
-    description: 'Sophisticated monitoring to ensure interview integrity and fairness.'
+    description: 'Sophisticated monitoring to ensure interview integrity and fairness.',
+    soon: true
   },
   {
     icon: BarChart,
@@ -36,7 +37,8 @@ const features = [
   {
     icon: Users,
     title: 'Practice Community',
-    description: 'Connect with peers to share experiences and preparation strategies.'
+    description: 'Connect with peers to share experiences and preparation strategies.',
+    soon: true
   }
 ];
 
@@ -66,7 +68,8 @@ const Index: React.FC = () => {
                 <FeatureCard 
                   icon={feature.icon} 
                   title={feature.title} 
-                  description={feature.description} 
+                  description={feature.description}
+                  soon={feature.soon}
                 />
               </div>
             ))}
@@ -108,7 +111,7 @@ const Index: React.FC = () => {
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center space-x-2">
               <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-sm">I</span>
+                <span className="text-primary-foreground font-bold text-sm">M</span>
               </div>
               <span className="font-semibold text-lg">MockDay</span>
             </div>

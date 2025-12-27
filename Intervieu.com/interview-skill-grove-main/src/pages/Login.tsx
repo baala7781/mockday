@@ -68,7 +68,7 @@ const LoginPage: React.FC = () => {
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center space-x-2 mb-6">
             <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-lg">I</span>
+              <span className="text-primary-foreground font-bold text-lg">M</span>
             </div>
             <span className="font-semibold text-2xl text-foreground">MockDay</span>
           </Link>

@@ -104,7 +104,7 @@ export function useInterviewWebSocket(
     // WebSocket URL for interview tracked
   }, [interviewId, wsUrl]);
 
-  // Fetch Deepgram API key: Check BYOK first, then env var, then backend
+  // Fetch Deepgram API key: Check BYOK first (from localStorage), then env var, then backend
   useEffect(() => {
     if (enableAudioRecording && !deepgramApiKey && !isLoadingDeepgramKey) {
       // 1. Check for BYOK key first (stored in localStorage)
