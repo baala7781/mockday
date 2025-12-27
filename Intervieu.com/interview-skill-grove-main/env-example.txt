@@ -32,3 +32,13 @@ VITE_FIREBASE_APP_ID=1:123456789:web:abcdef
 
 VITE_DEEPGRAM_API_KEY=your_deepgram_api_key
 
+# =============================================================================
+# BYOK (Bring Your Own Keys) Configuration
+# =============================================================================
+# VITE_ENABLE_BYOK_OPTION: Control whether users can choose between BYOK and system API
+#   - true or not set: Users see a checkbox and can choose to use their own API keys OR system API
+#   - false: Users MUST use their own API keys (BYOK only, no choice)
+# =============================================================================
+
+VITE_ENABLE_BYOK_OPTION=true
+

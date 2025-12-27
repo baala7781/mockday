@@ -71,7 +71,7 @@ const Navigation: React.FC = () => {
         {/* Logo */}
         <Link to="/" className="flex items-center space-x-2 group">
           <div className="h-9 w-9 rounded-full bg-primary flex items-center justify-center group-hover:scale-110 transition-transform">
-            <span className="text-primary-foreground font-bold text-lg">I</span>
+            <span className="text-primary-foreground font-bold text-lg">M</span>
           </div>
           <span className="font-semibold text-xl text-foreground">MockDay</span>
         </Link>

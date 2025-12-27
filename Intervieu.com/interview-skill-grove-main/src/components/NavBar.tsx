@@ -53,7 +53,7 @@ const NavBar: React.FC = () => {
       <div className="page-container py-4 flex items-center justify-between">
         <Link to="/" className="flex items-center space-x-2">
           <div className="h-9 w-9 rounded-full bg-primary flex items-center justify-center">
-            <span className="text-white font-bold text-lg">AI</span>
+            <span className="text-white font-bold text-lg">M</span>
           </div>
           <span className="font-semibold text-xl">MockDay</span>
         </Link>
