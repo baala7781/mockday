@@ -1,7 +1,7 @@
 """LLM-based skill extraction for dynamic role-skill mapping."""
 from typing import Dict, List, Optional
 from interview_service.models import InterviewRole, ResumeData
-from shared.providers.gemini_client import gemini_client
+from interview_service.llm_helpers import generate_with_task_and_byok
 from shared.db.redis_client import redis_client
 import json
 import logging
@@ -76,11 +76,13 @@ Guidelines:
 Return ONLY valid JSON, no additional text:"""
 
     try:
-        response = await gemini_client.generate_response(
+        # Use OpenRouter with gpt-4o-mini for skill extraction
+        response = await generate_with_task_and_byok(
+            task="resume_parsing",  # Similar to resume parsing
             prompt=prompt,
-            model="gemini-2.5-flash-lite",
-            max_tokens=1500,
-            temperature=0.3
+            max_tokens=2000,
+            temperature=0.1,
+            interview_id=None  # Skill extraction doesn't have interview context
         )
         
         if response:

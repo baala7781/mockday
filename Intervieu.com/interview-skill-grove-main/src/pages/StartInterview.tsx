@@ -108,26 +108,32 @@ const StartInterview: React.FC = () => {
     }
   }, []);
 
+  // Auto-select resume if only one exists
+  useEffect(() => {
+    if (resumes.length === 1 && !selectedResumeId) {
+      setSelectedResumeId(resumes[0].id);
+    }
+  }, [resumes, selectedResumeId]);
+
   const handleProceed = async () => {
     if (!currentUser) {
       setError('You must be logged in to start an interview.');
       return;
     }
 
-    // Validate resume selection - must select from existing resumes
-    if (!selectedResumeId) {
-      if (resumes.length === 0) {
-        setError('Please upload a resume in your profile first.');
-        toast({
-          variant: "destructive",
-          title: "No Resume",
-          description: "Please upload a resume in your profile before starting an interview.",
-        });
-        return;
-      }
-      setError('Please select a resume from your uploaded resumes.');
+    // Validate resume selection - show warning if resumes exist but none selected
+    if (!selectedResumeId && resumes.length > 0) {
+      setError('Please select a resume to start the interview.');
+      toast({
+        variant: "destructive",
+        title: "Resume Required",
+        description: "Please select a resume from your uploaded resumes to start the interview.",
+      });
       return;
     }
+
+    // If no resumes, allow proceeding with profile data (students without resumes)
+    // The backend will use profile data (skills, experience, education) from the user's profile
 
     setIsLoading(true);
     setError(null);
@@ -201,8 +207,12 @@ const StartInterview: React.FC = () => {
       const requestParams: any = {
         user_id: currentUser.uid,
         role: backendRole,
-        resume_id: resumeId,
       };
+      
+      // Only include resume_id if a resume is selected
+      if (selectedResumeId) {
+        requestParams.resume_id = selectedResumeId;
+      }
       
       // Add BYOK OpenRouter key if BYOK is enabled or required
       if ((useBYOK || !BYOK_OPTION_ENABLED) && openrouterKey.trim()) {
@@ -292,6 +302,11 @@ const StartInterview: React.FC = () => {
                       <span>Data Engineer</span>
                     </div>
                   </SelectItem>
+                  <SelectItem value="graduate">
+                    <div className="flex items-center gap-2">
+                      <span>Graduate</span>
+                    </div>
+                  </SelectItem>
                   <SelectItem value="devops-engineer">
                     <div className="flex items-center gap-2">
                       <span>DevOps Engineer</span>
@@ -346,9 +361,11 @@ const StartInterview: React.FC = () => {
           {/* Resume Selection Card */}
           <Card className="border-border shadow-sm">
             <CardHeader>
-              <CardTitle>Resume Selection</CardTitle>
+              <CardTitle>Resume Selection {resumes.length === 0 && '(Optional)'}</CardTitle>
               <CardDescription>
-                Select a resume from your profile (resumes are parsed when uploaded)
+                {resumes.length > 0 
+                  ? 'Select a resume from your profile (resumes are parsed when uploaded)'
+                  : 'Students without resumes can start an interview using profile details (skills, experience, education) from their profile'}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -387,15 +404,17 @@ const StartInterview: React.FC = () => {
                   <div className="p-4 border border-dashed border-border rounded-lg text-center bg-muted/30">
                     <FileText className="h-8 w-8 mx-auto mb-2 text-muted-foreground opacity-50" />
                     <p className="text-sm text-muted-foreground mb-3">
-                      No resumes uploaded yet. Please upload one in your profile first.
+                      No resumes uploaded. You can start an interview using your profile details (skills, experience, education) or upload a resume in your profile.
                     </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => navigate('/profile/setup')}
-                    >
-                      Go to Profile
-                    </Button>
+                    <div className="flex gap-2 justify-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate('/profile/setup')}
+                      >
+                        Go to Profile
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -580,8 +599,7 @@ const StartInterview: React.FC = () => {
               onClick={handleProceed}
               disabled={
                 isLoading || 
-                !selectedResumeId || 
-                resumes.length === 0 ||
+                (resumes.length > 0 && !selectedResumeId) || 
                 ((useBYOK || !BYOK_OPTION_ENABLED) && (!deepgramKey.trim() || !openrouterKey.trim())) ||
                 !!deepgramKeyError ||
                 !!openrouterKeyError

@@ -8,9 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { UploadCloud, FileText, Plus, CheckCircle2, Loader2, MapPin, Briefcase, GraduationCap, Linkedin, AlertCircle } from 'lucide-react';
+import { UploadCloud, FileText, Plus, CheckCircle2, Loader2, MapPin, Briefcase, GraduationCap, Linkedin, AlertCircle, Trash2 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
-import { updateProfile, uploadResume } from '@/lib/api';
+import { updateProfile, uploadResume, deleteResume } from '@/lib/api';
 
 interface ExperienceItem {
   role: string;
@@ -91,6 +91,9 @@ const ProfileSetup: React.FC = () => {
       setLinkedinUrl(profileData.linkedinUrl || '');
       setBio(profileData.bio || '');
       setSkills(profileData.skills || []);
+      // Load experiences and educations from profile data
+      setExperiences(profileData.experiences || []);
+      setEducations(profileData.educations || []);
     }
     if (resumesData) {
       setResumes(resumesData.map(r => ({ 
@@ -202,6 +205,33 @@ const ProfileSetup: React.FC = () => {
     }
   };
 
+  const handleDeleteResume = async (resumeId: string) => {
+    if (!confirm('Are you sure you want to delete this resume? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      if (!currentUser) return;
+      const token = await currentUser.getIdToken();
+      await deleteResume(token, resumeId);
+      
+      // Refresh global profile/resumes state
+      await refreshProfile();
+      
+      // Clear selected resume if it was deleted
+      if (selectedResumeId === resumeId) {
+        setSelectedResumeId('');
+      }
+      
+      toast({ 
+        title: "Resume Deleted", 
+        description: "Resume has been deleted successfully." 
+      });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Delete Failed', description: err.message || 'Please try again.' });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -228,8 +258,12 @@ const ProfileSetup: React.FC = () => {
         educations,
         skills,
       });
+      
+      // Refresh profile data to get updated data from backend
+      await refreshProfile();
+      
       toast({ title: 'Profile Saved!', description: 'Your profile has been updated successfully.' });
-      navigate('/dashboard');
+      // Don't navigate away - let user see the saved data
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Save Failed', description: err.message || 'Please try again.' });
     } finally {
@@ -338,15 +372,17 @@ const ProfileSetup: React.FC = () => {
                     {resumes.map((resume) => (
                       <div
                         key={resume.id}
-                        onClick={() => setSelectedResumeId(resume.id)}
-                        className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                        className={`p-4 border-2 rounded-lg transition-all ${
                           selectedResumeId === resume.id
                             ? 'border-primary bg-primary/5'
                             : 'border-border hover:border-primary/50'
                         }`}
                       >
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
+                          <div 
+                            className="flex items-center space-x-3 flex-1 cursor-pointer"
+                            onClick={() => setSelectedResumeId(resume.id)}
+                          >
                             <FileText className="h-5 w-5 text-primary" />
                             <div>
                               <p className="font-medium text-sm">{resume.name}</p>
@@ -355,9 +391,23 @@ const ProfileSetup: React.FC = () => {
                               </p>
                             </div>
                           </div>
-                          {selectedResumeId === resume.id && (
-                            <CheckCircle2 className="h-5 w-5 text-primary" />
-                          )}
+                          <div className="flex items-center gap-2">
+                            {selectedResumeId === resume.id && (
+                              <CheckCircle2 className="h-5 w-5 text-primary" />
+                            )}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteResume(resume.id);
+                              }}
+                              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     ))}

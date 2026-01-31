@@ -121,6 +121,11 @@ const InterviewInterface: React.FC<InterviewInterfaceProps> = ({ interviewId }) 
         }];
       });
       
+      // Auto-open code editor if coding question
+      if (question.question_type === 'coding') {
+        setIsCodeEditorOpen(true);
+      }
+      
       // Clear submitting state when new question arrives
       setIsSubmitting(false);
       
@@ -375,7 +380,7 @@ const InterviewInterface: React.FC<InterviewInterfaceProps> = ({ interviewId }) 
 
   return (
     <div className="h-screen w-screen flex items-center justify-center p-4 md:p-6 bg-background overflow-hidden">
-      <div className="w-full h-full max-w-screen-2xl grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 overflow-hidden">
+      <div className="w-full h-full max-w-screen-2xl grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 overflow-hidden" style={{ maxHeight: '100dvh' }}>
 
         {/* Left Column */}
         <div className="lg:col-span-1 flex flex-col gap-4 md:gap-6 h-full min-h-0 overflow-hidden">
@@ -385,9 +390,6 @@ const InterviewInterface: React.FC<InterviewInterfaceProps> = ({ interviewId }) 
               <Bot size={60} className="text-primary"/>
             </div>
             <h2 className="text-xl font-bold">AI Interviewer</h2>
-            <p className="text-sm text-muted-foreground">
-              {currentQuestion?.skill || 'Preparing interview...'}
-            </p>
             <div className="mt-2 flex items-center gap-2">
               {isConnected ? (
                 <span className="text-xs text-green-600 flex items-center gap-1">
@@ -408,12 +410,13 @@ const InterviewInterface: React.FC<InterviewInterfaceProps> = ({ interviewId }) 
             </div>
           </Card>
 
-          <div className="flex-1 min-h-0 overflow-hidden">
+          {/* Video feed disabled - commented out as per requirements */}
+          {/* <div className="flex-1 min-h-0 overflow-hidden">
             <Card className="relative h-full flex items-center justify-center overflow-hidden">
                <VideoFeed mirrored={true} className="h-full w-full" />
                <div className="absolute bottom-2 left-2 text-xs bg-background/80 backdrop-blur-sm text-foreground px-2 py-0.5 rounded border border-border">You</div>
             </Card>
-          </div>
+          </div> */}
 
           <Card className="flex-shrink-0">
             <CardHeader className='pb-3'><CardTitle className='text-base'>Interview Controls</CardTitle></CardHeader>
@@ -454,11 +457,12 @@ const InterviewInterface: React.FC<InterviewInterfaceProps> = ({ interviewId }) 
               {/* Other Controls */}
               <div className="flex items-center justify-around pt-2 border-t">
                 <Button 
-                  variant="outline" 
+                  variant={currentQuestion?.question_type === 'coding' ? "default" : "outline"}
                   size="icon" 
                   onClick={() => setIsCodeEditorOpen(true)} 
                   title="Code Editor"
                   disabled={isInterviewCompleted}
+                  className={currentQuestion?.question_type === 'coding' ? "bg-primary text-primary-foreground" : ""}
                 >
                   <Code size={20}/>
                 </Button>
@@ -600,7 +604,7 @@ const InterviewInterface: React.FC<InterviewInterfaceProps> = ({ interviewId }) 
                 </div>
             )}
 
-            <ScrollArea className="flex-1 min-h-0 p-4 md:p-6">
+            <ScrollArea className="flex-1 min-h-0 p-4 md:p-6 pb-20 md:pb-6">
                 <div className="space-y-4 md:space-y-6">
                     {transcript.length === 0 ? (
                       <div className="flex items-center justify-center h-full">
@@ -634,7 +638,7 @@ const InterviewInterface: React.FC<InterviewInterfaceProps> = ({ interviewId }) 
                 </div>
             </ScrollArea>
 
-            <div className="p-3 md:p-4 border-t bg-muted/50 flex-shrink-0">
+            <div className="p-3 md:p-4 border-t bg-muted/50 flex-shrink-0 sticky bottom-0 z-10">
               {isInterviewCompleted ? (
                 <div className="w-full text-center text-sm text-green-600 bg-green-50 p-2 rounded-lg">
                   Interview completed! Redirecting to report...
@@ -650,17 +654,26 @@ const InterviewInterface: React.FC<InterviewInterfaceProps> = ({ interviewId }) 
                         handleSubmitAnswer();
                       }
                     }}
-                    className="min-h-[80px]"
+                    className="min-h-[80px] max-h-[120px] resize-none"
                     disabled={isSubmitting || !isConnected}
+                    onFocus={(e) => {
+                      // On mobile, prevent page scroll when textarea is focused
+                      if (window.innerWidth < 768) {
+                        setTimeout(() => {
+                          e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }, 300);
+                      }
+                    }}
                   />
-                  <div className="flex justify-between items-center">
-                    <p className="text-xs text-muted-foreground">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                    <p className="text-xs text-muted-foreground hidden sm:block">
                       Press Ctrl+Enter to submit
                     </p>
                     <Button
                       onClick={handleSubmitAnswer}
                       disabled={isSubmitting || !isConnected || (!currentAnswer.trim() && !codeAnswer.trim())}
                       size="sm"
+                      className="w-full sm:w-auto"
                     >
                       {isSubmitting ? (
                         <>

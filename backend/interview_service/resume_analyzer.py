@@ -14,7 +14,7 @@ from PyPDF2 import PdfReader
 
 from interview_service.models import Experience, Project, ResumeData, Skill
 from shared.db.redis_client import redis_client
-from shared.providers.gemini_client import gemini_client
+from interview_service.llm_helpers import generate_with_task_and_byok
 from shared.storage.firebase_storage import download_blob_as_bytes
 
 logger = logging.getLogger(__name__)
@@ -91,46 +91,18 @@ Return only valid JSON, no additional text:"""
     try:
         logger.info(f"📄 [Resume Parser] Analyzing resume with LLM (text length: {len(resume_text)} chars)")
         
-        # Check Gemini API keys before attempting
-        from shared.providers.pool_manager import provider_pool_manager, ProviderType
-        pool_stats = await provider_pool_manager.get_pool_stats(ProviderType.GEMINI)
-        logger.info(f"📄 [Resume Parser] Gemini pool stats: {pool_stats}")
-        
-        if pool_stats["total_accounts"] == 0:
-            logger.error("❌ [Resume Parser] No Gemini API keys configured! Check GEMINI_API_KEYS environment variable.")
-            return ResumeData()
-        
-        # Retry logic for resume parsing
-        max_retries = 2
-        response = None
-        for attempt in range(max_retries):
-            try:
-                logger.info(f"📄 [Resume Parser] Attempt {attempt + 1}/{max_retries}: Calling Gemini API...")
-                response = await gemini_client.generate_response(
-                    prompt=prompt,
-                    model="gemini-2.5-flash-lite",
-                    max_tokens=4000,  # Increase for longer resumes
-                    temperature=0.3
-                )
-                
-                if response:
-                    logger.info(f"✅ [Resume Parser] Got response from LLM (length: {len(response)} chars)")
-                    break
-                else:
-                    logger.warning(f"⚠️ [Resume Parser] Attempt {attempt + 1}: LLM returned empty response")
-                    if attempt < max_retries - 1:
-                        import asyncio
-                        await asyncio.sleep(1)
-            except Exception as e:
-                logger.error(f"❌ [Resume Parser] Attempt {attempt + 1} failed: {e}", exc_info=True)
-                if attempt < max_retries - 1:
-                    import asyncio
-                    await asyncio.sleep(1)
-                else:
-                    raise
+        # Use OpenRouter with gpt-4o-mini for resume parsing
+        logger.info(f"📄 [Resume Parser] Using OpenRouter (gpt-4o-mini) for resume parsing")
+        response = await generate_with_task_and_byok(
+            task="resume_parsing",
+            prompt=prompt,
+            max_tokens=4000,
+            temperature=0.1,
+            interview_id=None  # Resume parsing doesn't have interview context
+        )
         
         if not response:
-            logger.error("❌ [Resume Parser] LLM returned empty response after all retries")
+            logger.error("❌ [Resume Parser] LLM returned empty response")
             return ResumeData()
         
         logger.debug(f"📄 [Resume Parser] LLM response (first 500 chars): {response[:500]}")

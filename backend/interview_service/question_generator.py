@@ -1,7 +1,8 @@
 """Question generation using LLM."""
 from typing import Dict, Any, Optional, List
 from interview_service.models import Question, QuestionType, DifficultyLevel, ResumeData, InterviewState
-from shared.providers.gemini_client import gemini_client
+from interview_service.question_validation import validate_question
+from interview_service.llm_helpers import generate_with_task_and_byok
 from interview_service.memory_controller import (
     get_conversation_context_for_question,
     get_relevant_resume_context_for_skill
@@ -38,7 +39,8 @@ async def generate_question(
     previous_questions: Optional[List[str]] = None,
     previous_answers: Optional[List[str]] = None,
     state: Optional[InterviewState] = None,
-    candidate_name: Optional[str] = None
+    candidate_name: Optional[str] = None,
+    is_follow_up: bool = False
 ) -> Question:
     """
     Generate an interview question using LLM.
@@ -92,76 +94,77 @@ async def generate_question(
     safe_name = candidate_name if candidate_name else None
     name_instruction = f"Address the candidate as '{safe_name}'" if safe_name else "Address the candidate as 'you' (do NOT invent or use any names)"
     
-    # Generate prompt with new format (more natural, less rules)
-    prompt = f"""You are acting as an expert technical interviewer for the role: {role}. 
+    # Get experience level for prompt
+    experience_level = state.experience_level if state else None
+    
+    # Build follow-up specific instructions
+    follow_up_instruction = ""
+    if is_follow_up and previous_answers and len(previous_answers) > 0:
+        last_answer = previous_answers[-1] if previous_answers else ""
+        follow_up_instruction = f"""
+FOLLOW-UP CONTEXT:
+The candidate just gave a PARTIAL answer to the previous question. Their answer was: "{last_answer[:200]}"
 
-Your goal is to conduct a realistic, natural-sounding, professional interview that accurately assesses the candidate's skills.
+Your task is to ask a FOLLOW-UP question on the SAME topic ({skill}) that:
+- Seeks clarification or elaboration on what they mentioned
+- Digs deeper into the specific aspect they touched on
+- Helps them provide more complete information
+- Is more specific and targeted based on their partial answer
 
-## Candidate Background
+Examples of good follow-ups:
+- If they mentioned "error handling" but didn't explain: "You mentioned error handling. Can you walk me through a specific scenario where you implemented error handling in Python, and what strategies you used?"
+- If they gave a brief answer: "You mentioned [specific thing from their answer]. Can you elaborate on how you would implement that in a production environment?"
+- If they were vague: "You touched on [topic]. Can you provide a concrete example of when you used this in a real project?"
 
-- Target Skill: {skill}
+DO NOT ask a completely new question - this must be a follow-up that builds on their previous answer.
+"""
+    
+    # Generate prompt - final MVP-safe version
+    prompt = f"""You are a professional interviewer conducting a REAL interview.
 
-- Difficulty Level: {difficulty} ({DIFFICULTY_NAMES[difficulty]})
+Role: {role}
+Candidate level: {experience_level if experience_level else 'not specified'}
+Skill to assess: {skill}
+Difficulty: {difficulty} ({DIFFICULTY_NAMES[difficulty]})
+Question Type: {QUESTION_TYPE_NAMES[question_type]}
 
-- Question Type: {QUESTION_TYPE_NAMES[question_type]}
+STRICT RULES (NO EXCEPTIONS):
+- The question MUST include a concrete real-world scenario.
+- DO NOT ask generic questions.
+- DO NOT ask theory-only questions for entry-level candidates.
+- DO NOT invent companies, products, or projects.
+- If role is Tester/QA: ask for test cases or test scenarios ONLY.
+- If role is DevOps/Product/QA: DO NOT ask coding questions.
+- Keep the question 2-3 sentences.
 
-- Resume Context (if given):
+{follow_up_instruction}
 
-{resume_context if resume_context else "Not provided"}
+Conversation context:
+Last question: {previous_context if previous_context else 'None yet.'}
+Last answer summary: {answers_context if answers_context else 'No answers yet.'}
 
-## Conversation Context
+Resume context: {resume_context if resume_context else 'Not provided'}
 
-{previous_context if previous_context else "None yet."}
+TASK:
+Generate ONE interview question that:
+- Sounds like a human interviewer
+- Is clear and specific
+- Naturally follows the conversation
+- Focuses on practical decision-making
+{f'- Is a FOLLOW-UP question that builds on the candidate\'s previous partial answer' if is_follow_up else ''}
 
-{answers_context if answers_context else "No answers yet."}
+GOOD EXAMPLES:
+"Imagine you are testing a login API that occasionally fails under load. What test cases would you design to validate both functionality and edge cases?"
+"Suppose you're building a payment processing system. How would you handle error scenarios to ensure data integrity?"
 
-## Your Task
+BAD EXAMPLES:
+"What is API testing?"
+"Explain load testing."
+"Tell me about your experience with Python."
 
-Generate ONE natural-sounding interview question that:
+{name_instruction}. NEVER invent, guess, or use personal names, companies, or projects that were not explicitly mentioned in the resume context.
 
-1. Flows naturally from the previous conversation.
-
-2. DOES NOT repeat any previous questions.
-
-3. **IMPORTANT - VARY question types and avoid repetition**: 
-   - 70% CONCEPTUAL/GENERAL: Ask about the skill ({skill}) itself, concepts, best practices, tradeoffs, real-world scenarios
-   - 30% PROJECT-BASED: Ask about their specific project experience (only if relevant and not already covered)
-   - DO NOT always ask about projects! Mix conceptual questions with practical scenarios
-   - If previous questions were about projects, switch to conceptual/theoretical
-   - If previous questions were conceptual, you can ask about projects but make it specific and different
-
-4. Reflects the difficulty level accurately.
-
-5. Focuses on real-world application and problem-solving.
-
-6. Is short (1–2 sentences).
-
-7. **CRITICAL - AVOID THESE BANNED PHRASES**:
-   - NEVER start with "Tell me about your..."
-   - NEVER start with "Okay..." or "Okay, so..."
-   - NEVER start with "Regarding your experience with..."
-   - NEVER start with "In your [project name]..."
-   - NEVER combine two questions in one message
-   
-8. **USE THESE OPENERS** (pick randomly):
-   - "How would you explain..."
-   - "What's your approach to..."
-   - "Can you walk me through how..."
-   - "What are the key considerations when..."
-   - "How do you typically handle..."
-   - "What's the difference between..."
-   - "When would you choose X over Y..."
-   - "What challenges have you seen with..."
-   - "How would you optimize..."
-   - "What's your experience with..."
-
-9. {name_instruction}. NEVER invent, guess, or use personal names that were not provided.
-
-## Output Format
-
-Return ONLY the question text. 
-
-Do NOT include numbers, prefixes, explanations, or additional commentary."""
+Return ONLY the question text. Do NOT include numbers, prefixes, explanations, or additional commentary."""
 
     # Log what we're requesting from LLM
     logger.info(f"🤖 [LLM Question Generation] Requesting question from LLM:")
@@ -169,40 +172,82 @@ Do NOT include numbers, prefixes, explanations, or additional commentary."""
     if resume_data and resume_data.projects:
         logger.info(f"   Resume context: {len(resume_data.projects)} projects available for reference")
 
-    try:
-        response = await gemini_client.generate_response(
-            prompt=prompt,
-            model="gemini-2.5-flash-lite",
-            max_tokens=500,
-            temperature=0.7,
-            interview_id=state.interview_id if state else None  # Pass interview_id for BYOK support
-        )
-        
-        if response:
-            logger.info(f"🤖 [LLM Question Generation] Received response from LLM (length: {len(response)} chars)")
-            logger.debug(f"🤖 [LLM Question Generation] Full LLM response: {response}")
-            
-            # Clean up response
-            question_text = response.strip()
-            # Remove quotes if present
-            if question_text.startswith('"') and question_text.endswith('"'):
-                question_text = question_text[1:-1]
-            
-            logger.info(f"🤖 [LLM Question Generation] Generated question: '{question_text[:100]}...'")
-            
-            return Question(
-                question_id=str(uuid.uuid4()),
-                question=question_text,
-                skill=skill,
-                difficulty=difficulty,
-                type=question_type,
-                context={
-                    "role": role,
-                    "resume_context": resume_context
-                }
+    # Get experience level for prompt
+    experience_level = state.experience_level if state else None
+    
+    # Retry loop with validation
+    MAX_RETRIES = 3
+    last_error = None
+    
+    for attempt in range(MAX_RETRIES):
+        try:
+            # Use OpenRouter with gpt-4o-mini for question generation
+            logger.info(f"🤖 [Question Generation] Attempt {attempt + 1}/{MAX_RETRIES}: Using OpenRouter (gpt-4o-mini)")
+            response = await generate_with_task_and_byok(
+                task="question_generation",
+                prompt=prompt,
+                max_tokens=500,
+                temperature=0.7,
+                interview_id=state.interview_id if state else None
             )
-    except Exception as e:
-        print(f"Error generating question: {e}")
+            
+            if response and response.strip():
+                question_text = response.strip()
+                # Remove quotes if present
+                if question_text.startswith('"') and question_text.endswith('"'):
+                    question_text = question_text[1:-1]
+                if question_text.startswith("'") and question_text.endswith("'"):
+                    question_text = question_text[1:-1]
+                
+                # Validate the question is reasonable length
+                if len(question_text) < 20:
+                    logger.warning(f"⚠️ [Question Generation] Attempt {attempt + 1}: Question too short")
+                    continue
+                
+                # Create question object
+                question_obj = Question(
+                    question_id=str(uuid.uuid4()),
+                    question=question_text,
+                    skill=skill,
+                    difficulty=difficulty,
+                    type=question_type,
+                    context={"phase": "question_generation", "source": "llm"}
+                )
+                
+                # Validate question meets role constraints
+                is_valid, reason = validate_question(question_text, role, question_type)
+                if is_valid:
+                    logger.info(f"✅ [Question Generation] Valid question generated on attempt {attempt + 1}")
+                    return question_obj
+                else:
+                    logger.warning(f"⚠️ [Question Generation] Attempt {attempt + 1}: Validation failed: {reason}")
+                    logger.debug(f"   Question: {question_text[:100]}...")
+                    # Continue to retry
+                    continue
+            
+        except Exception as e:
+            last_error = e
+            logger.error(f"❌ [Question Generation] Attempt {attempt + 1} failed: {e}", exc_info=True)
+            if attempt < MAX_RETRIES - 1:
+                import asyncio
+                await asyncio.sleep(0.5 * (attempt + 1))  # Exponential backoff
+            continue
+    
+    # All retries failed - use fallback template
+    logger.error(f"❌ [Question Generation] All {MAX_RETRIES} attempts failed. Using fallback template.")
+    if last_error:
+        logger.error(f"   Last error: {last_error}")
+    
+    # Fallback: Return a basic template question
+    fallback_question = f"Can you explain your experience with {skill} and how you've used it in your projects?"
+    return Question(
+        question_id=str(uuid.uuid4()),
+        question=fallback_question,
+        skill=skill,
+        difficulty=difficulty,
+        type=question_type,
+        context={"phase": "question_generation", "source": "fallback"}
+    )
     
     # Fallback question
     return Question(
@@ -259,13 +304,13 @@ Return this EXACT JSON structure (no markdown blocks):
 Generate NOW (JSON only):"""
 
     try:
-        # Try LLM generation first with increased temperature for variety
-        response = await gemini_client.generate_response(
+        # Use OpenRouter with gpt-4o-mini for coding questions
+        response = await generate_with_task_and_byok(
+            task="question_generation",
             prompt=prompt,
-            model="gemini-2.5-flash-lite",
             max_tokens=1500,
             temperature=0.85,  # Higher for more creative/varied problems
-            interview_id=state.interview_id if state else None  # Pass interview_id for BYOK support
+            interview_id=None  # Coding questions don't have interview context in this function
         )
         
         if response:

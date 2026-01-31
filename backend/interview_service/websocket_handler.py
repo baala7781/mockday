@@ -7,12 +7,12 @@ from typing import Dict, Optional
 from fastapi import WebSocket, WebSocketDisconnect
 
 from shared.providers.deepgram_client import deepgram_client
-from shared.providers.gemini_client import gemini_client
 from interview_service.models import Answer, InterviewPhase, InterviewFlowState, InterviewStatus
 from interview_service.interview_state import load_interview_state
 from interview_service.answer_evaluator import evaluate_answer
 from interview_service.phased_flow import select_next_question_phased, update_phase_question_count
 from interview_service.interview_state import save_interview_state, save_interview_state_to_firestore
+from interview_service.conversational_framing import get_candidate_name_safely
 
 logger = logging.getLogger(__name__)
 
@@ -547,27 +547,16 @@ class InterviewWebSocketHandler:
                 state=state
             )
             
-            # Task 2: Generate next question (pre-generate while evaluating)
-            next_question_task = select_next_question_phased(state)
+            # Evaluate answer first (we need evaluation to decide on follow-up)
+            evaluation = await evaluation_task
             
-            # Run both tasks in parallel
-            evaluation, next_question = await asyncio.gather(
-                evaluation_task,
-                next_question_task,
-                return_exceptions=True
-            )
-            
-            # Handle exceptions
+            # Handle evaluation exception
             if isinstance(evaluation, Exception):
                 logger.error(f"Error evaluating answer: {evaluation}")
                 return {
                     "type": "error",
                     "message": f"Error evaluating answer: {str(evaluation)}"
                 }
-            
-            if isinstance(next_question, Exception):
-                logger.error(f"Error generating next question: {next_question}")
-                next_question = None
             
             # Update state
             if state.current_project:
@@ -581,11 +570,99 @@ class InterviewWebSocketHandler:
                     state.answered_skills[state.current_question.skill] = []
                 state.answered_skills[state.current_question.skill].append(evaluation)
             
-            # Update phase and difficulty
+            # Update phase
             update_phase_question_count(state)
-            state.current_difficulty = evaluation.next_difficulty
             state.total_questions += 1
             state.questions_asked.append(state.current_question)
+            
+            # Use flow decisions to determine next action and adjust difficulty
+            from interview_service.flow_decisions import categorize_answer, decide_next_action
+            from interview_service.models import NextAction, DifficultyLevel
+            
+            answer_quality = categorize_answer(
+                score=evaluation.score,
+                answer_text=answer_text,
+                question_type=state.current_question.type
+            )
+            
+            # Count consecutive "no idea" answers for this skill
+            consecutive_stuck = 0
+            if state.current_question.skill in state.answered_skills and len(state.answered_skills[state.current_question.skill]) > 0:
+                recent_evals = state.answered_skills[state.current_question.skill][-3:]  # Last 3
+                for ev in recent_evals:
+                    ev_quality = categorize_answer(ev.score, "", state.current_question.type)
+                    if ev_quality.value == "no_idea":
+                        consecutive_stuck += 1
+                    else:
+                        break
+            
+            next_action = decide_next_action(answer_quality, consecutive_stuck)
+            
+            # Adjust difficulty based on flow decision
+            if next_action == NextAction.INCREASE_DIFFICULTY:
+                state.current_difficulty = DifficultyLevel(min(state.current_difficulty.value + 1, 4))
+                logger.info(f"⬆️ Difficulty increased to {state.current_difficulty.value} (strong answer)")
+            elif next_action == NextAction.SWITCH_TOPIC:
+                # Reset difficulty to basic when switching topics (don't penalize)
+                state.current_difficulty = DifficultyLevel.BASIC
+                logger.info(f"🔄 Topic switch - difficulty reset to BASIC")
+            elif next_action == NextAction.FOLLOW_UP:
+                # Generate follow-up question on same topic
+                logger.info(f"🔄 Follow-up question needed for skill: {state.current_question.skill}")
+                from interview_service.question_generator import generate_question
+                
+                # Get candidate name
+                profile_data = None
+                try:
+                    from shared.db.firestore_client import firestore_client
+                    profile_data = await firestore_client.get_document("users", state.user_id)
+                except:
+                    pass
+                candidate_name = get_candidate_name_safely(profile_data)
+                
+                # Generate follow-up question on the same skill/topic
+                follow_up_question = await generate_question(
+                    skill=state.current_question.skill,
+                    difficulty=state.current_difficulty,
+                    role=state.role.value,
+                    resume_data=state.resume_data,
+                    state=state,
+                    previous_questions=[state.current_question.question],
+                    previous_answers=[answer_text],
+                    candidate_name=candidate_name,
+                    is_follow_up=True  # Signal that this is a follow-up
+                )
+                
+                if follow_up_question:
+                    # Update state with follow-up question
+                    state.current_question = follow_up_question
+                    state.current_skill = follow_up_question.skill
+                    
+                    # Update flow state
+                    state.flow_state = InterviewFlowState.USER_WAITING
+                    
+                    # Save state
+                    await save_interview_state(state)
+                    await save_interview_state_to_firestore(state)
+                    
+                    logger.info(f"✅ Follow-up question generated: {follow_up_question.question[:80]}...")
+                    # Skip the normal next question flow - return early
+                    # The caller (main.py) will send the follow-up question to the client
+                    return {
+                        "type": "answer_response",
+                        "evaluation": evaluation.model_dump(),
+                        "next_question": {
+                            "question": follow_up_question.question,
+                            "question_id": follow_up_question.question_id,
+                            "skill": follow_up_question.skill,
+                            "difficulty": follow_up_question.difficulty.value,
+                            "question_type": follow_up_question.type.value
+                        },
+                        "flow_state": state.flow_state.value
+                    }
+                else:
+                    # Fallback: if follow-up generation fails, continue normally
+                    logger.warning("⚠️ Follow-up question generation failed, continuing with normal flow")
             
             # Add to conversation history (sliding window)
             qa_pair = {
@@ -606,6 +683,23 @@ class InterviewWebSocketHandler:
                 from datetime import datetime
                 elapsed = (datetime.utcnow() - state.started_at).total_seconds() / 60  # minutes
                 time_limit_reached = elapsed >= state.interview_duration_minutes
+            
+            # Generate next question if we didn't already generate a follow-up
+            if next_action != NextAction.FOLLOW_UP:
+                # Get candidate name for next question
+                profile_data = None
+                try:
+                    from shared.db.firestore_client import firestore_client
+                    profile_data = await firestore_client.get_document("users", state.user_id)
+                except:
+                    pass
+                candidate_name = get_candidate_name_safely(profile_data)
+                
+                next_question = await select_next_question_phased(
+                    state,
+                    last_evaluation=evaluation,
+                    candidate_name=candidate_name
+                )
             
             if time_limit_reached or not next_question:
                 from interview_service.interview_state import complete_interview

@@ -39,10 +39,9 @@ class Settings(BaseSettings):
     DEEPGRAM_API_KEYS: str = os.getenv("DEEPGRAM_API_KEYS", "")
     OPENAI_API_KEYS: str = os.getenv("OPENAI_API_KEYS", "")
     GEMINI_API_KEYS: str = os.getenv("GEMINI_API_KEYS", "")
-    OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
+    OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")  # Single key (for backward compatibility)
+    OPENROUTER_API_KEYS: str = os.getenv("OPENROUTER_API_KEYS", "")  # Comma-separated keys for pool management
     OPENROUTER_REFERER_URL: str = os.getenv("OPENROUTER_REFERER_URL", "https://mockday.io")
-    OPENROUTER_USE_PAID: str = os.getenv("OPENROUTER_USE_PAID", "false")  # Set to "true" to use paid models
-    OPENROUTER_MODEL_PREFERENCE: str = os.getenv("OPENROUTER_MODEL_PREFERENCE", "gemini")  # Options: "gemini", "gpt", "claude", "llama", or specific model name
     
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 60
