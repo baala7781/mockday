@@ -2,7 +2,7 @@
 from typing import Optional
 from interview_service.models import InterviewState, Question, Evaluation
 from interview_service.memory_controller import create_resume_summary
-from shared.providers.gemini_client import gemini_client
+from interview_service.llm_helpers import generate_with_task_and_byok
 import logging
 
 logger = logging.getLogger(__name__)
@@ -111,12 +111,13 @@ Examples:
 Generate ONLY the transition text, no additional explanation:"""
 
     try:
-        response = await gemini_client.generate_response(
+        # Use OpenRouter with gpt-4o-mini for conversational transitions
+        response = await generate_with_task_and_byok(
+            task="follow_up",
             prompt=prompt,
-            model="gemini-2.5-flash-lite",
-            max_tokens=100,
+            max_tokens=200,
             temperature=0.7,
-            interview_id=state.interview_id  # Pass interview_id for BYOK support
+            interview_id=state.interview_id
         )
         
         if response:

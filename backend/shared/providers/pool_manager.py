@@ -13,7 +13,7 @@ class ProviderType(Enum):
     DEEPGRAM_STT = "deepgram_stt"
     DEEPGRAM_TTS = "deepgram_tts"
     OPENAI = "openai"
-    GEMINI = "gemini"
+    OPENROUTER = "openrouter"
 
 
 @dataclass
@@ -89,12 +89,17 @@ class ProviderPoolManager:
                 for key in keys
             ]
         
-        # Gemini
-        if settings.GEMINI_API_KEYS:
-            keys = [k.strip() for k in settings.GEMINI_API_KEYS.split(",") if k.strip()]
-            self.pools[ProviderType.GEMINI] = [
-                ProviderAccount(key, ProviderType.GEMINI)
-                for key in keys
+        # OpenRouter (primary LLM provider)
+        openrouter_keys = []
+        if settings.OPENROUTER_API_KEYS:
+            openrouter_keys = [k.strip() for k in settings.OPENROUTER_API_KEYS.split(",") if k.strip()]
+        elif settings.OPENROUTER_API_KEY:
+            openrouter_keys = [settings.OPENROUTER_API_KEY.strip()]
+        
+        if openrouter_keys:
+            self.pools[ProviderType.OPENROUTER] = [
+                ProviderAccount(key, ProviderType.OPENROUTER)
+                for key in openrouter_keys
             ]
     
     async def get_account(

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { TrendingUp, AlertCircle, CheckCircle2, BookOpen, ExternalLink } from 'lucide-react';
+import { TrendingUp, AlertCircle, CheckCircle2, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface ImprovementPlanProps {
@@ -25,42 +25,7 @@ const ImprovementPlan: React.FC<ImprovementPlanProps> = ({
         .sort((a, b) => a.score - b.score)
     : [];
 
-  // Get recommended resources based on weak skills
-  const getResourceRecommendations = () => {
-    const resources = [];
-    
-    if (skillGaps.length > 0) {
-      const topGap = skillGaps[0].skill.toLowerCase();
-      
-      if (topGap.includes('algorithm') || topGap.includes('data structure')) {
-        resources.push({
-          title: 'LeetCode - Algorithm Practice',
-          url: 'https://leetcode.com',
-          description: 'Practice coding problems to strengthen algorithmic thinking'
-        });
-      }
-      
-      if (topGap.includes('python') || topGap.includes('javascript')) {
-        resources.push({
-          title: `${skillGaps[0].skill} Documentation`,
-          url: '#',
-          description: 'Review official documentation and best practices'
-        });
-      }
-      
-      if (topGap.includes('system')) {
-        resources.push({
-          title: 'System Design Primer',
-          url: 'https://github.com/donnemartin/system-design-primer',
-          description: 'Comprehensive guide to system design interviews'
-        });
-      }
-    }
-    
-    return resources;
-  };
-
-  const resources = getResourceRecommendations();
+  // Resource recommendations removed as per requirements (they were redirecting to internal apps)
 
   return (
     <div className="space-y-6">
@@ -174,30 +139,6 @@ const ImprovementPlan: React.FC<ImprovementPlanProps> = ({
             </ol>
           ) : (
             <p className="text-sm text-muted-foreground mb-6">Keep practicing and refining your skills!</p>
-          )}
-
-          {/* Recommended Resources */}
-          {resources.length > 0 && (
-            <div className="pt-4 border-t">
-              <h4 className="font-semibold text-sm mb-3">Recommended Resources:</h4>
-              <div className="space-y-2">
-                {resources.map((resource, index) => (
-                  <a
-                    key={index}
-                    href={resource.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-start gap-2 p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors group"
-                  >
-                    <ExternalLink className="w-4 h-4 text-primary mt-0.5 flex-shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">{resource.title}</p>
-                      <p className="text-xs text-muted-foreground">{resource.description}</p>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            </div>
           )}
         </CardContent>
       </Card>

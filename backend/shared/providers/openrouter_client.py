@@ -1,4 +1,4 @@
-"""OpenRouter client for LLM interactions (50 RPD free tier, 1,000 RPD with $10 credit)."""
+"""OpenRouter client for LLM interactions with pool management support."""
 import httpx
 import logging
 from typing import Optional, Dict, Any
@@ -11,61 +11,45 @@ logger = logging.getLogger(__name__)
 class OpenRouterClient:
     """OpenRouter client with retry logic and error handling."""
     
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, use_pool: bool = False):
         """
         Initialize OpenRouter client.
         
         Args:
-            api_key: Optional API key. If provided, uses this instead of settings.
+            api_key: Optional API key. If provided, uses this instead of pool/settings.
                      This allows BYOK (Bring Your Own Key) support.
+            use_pool: If True, use pool manager for key selection (for multiple keys)
         """
-        # Use provided key (BYOK) or fall back to settings
-        self.api_key = api_key or (settings.OPENROUTER_API_KEY or None)
+        # Use provided key (BYOK) or use pool/fall back to settings
+        self.api_key = api_key  # Will be set per-request if using pool
+        self.use_pool = use_pool and not api_key  # Only use pool if no explicit key provided
         self.base_url = "https://openrouter.ai/api/v1"
+    
+    async def _get_api_key(self) -> Optional[str]:
+        """Get API key from pool or use instance key."""
+        if self.api_key:
+            return self.api_key
         
-        # Model selection priority (from env or defaults)
-        # Free tier models (shared pool, can be rate-limited):
-        # Note: Some free models may not be available - system will fallback to Gemini
-        self.free_models = {
-            "gemini": "google/gemini-2.0-flash-exp:free",  # Known to work
-            "gpt": "openai/gpt-3.5-turbo",  # Try without :free suffix first
-            "claude": "anthropic/claude-3-haiku",  # Try without :free suffix
-            "llama": "meta-llama/llama-3.2-3b-instruct",  # Try without :free suffix
-        }
+        if self.use_pool:
+            try:
+                from shared.providers.pool_manager import provider_pool_manager, ProviderType
+                account = await provider_pool_manager.get_account(ProviderType.OPENROUTER, strategy="round_robin")
+                if account:
+                    return account.api_key
+            except Exception as e:
+                logger.warning(f"Failed to get key from pool: {e}")
         
-        # Alternative free models (if primary doesn't work)
-        self.free_models_alt = {
-            "gpt": "openai/gpt-3.5-turbo:free",  # Alternative format
-            "claude": "anthropic/claude-3-haiku:free",  # Alternative format
-            "llama": "meta-llama/llama-3.2-3b-instruct:free",  # Alternative format
-        }
+        # Fallback to settings
+        if settings.OPENROUTER_API_KEY:
+            return settings.OPENROUTER_API_KEY
         
-        # Paid models (better rate limits, requires credits):
-        self.paid_models = {
-            "gemini": "google/gemini-2.5-flash",
-            "gpt": "openai/gpt-4o-mini",  # Cheaper GPT-4 variant
-            "claude": "anthropic/claude-3.5-sonnet",
-            "llama": "meta-llama/llama-3.1-70b-instruct",
-        }
+        # Try first key from OPENROUTER_API_KEYS if available
+        if settings.OPENROUTER_API_KEYS:
+            keys = [k.strip() for k in settings.OPENROUTER_API_KEYS.split(",") if k.strip()]
+            if keys:
+                return keys[0]
         
-        # Default model preference (can be set via env: OPENROUTER_MODEL_PREFERENCE)
-        # Options: "gemini", "gpt", "claude", "llama", or specific model name
-        model_pref = getattr(settings, 'OPENROUTER_MODEL_PREFERENCE', 'gemini').lower()
-        use_paid = getattr(settings, 'OPENROUTER_USE_PAID', 'false').lower() == 'true'
-        
-        # Select model based on preference
-        if model_pref in self.free_models and not use_paid:
-            self.default_model = self.free_models[model_pref]
-        elif model_pref in self.paid_models and use_paid:
-            self.default_model = self.paid_models[model_pref]
-        elif model_pref.startswith(('google/', 'openai/', 'anthropic/', 'meta-llama/')):
-            # Direct model name provided
-            self.default_model = model_pref
-        else:
-            # Default fallback
-            self.default_model = self.free_models.get("gemini", "google/gemini-2.0-flash-exp:free")
-        
-        logger.info(f"OpenRouter configured with model: {self.default_model} (preference: {model_pref}, paid: {use_paid})")
+        return None
     
     async def generate_response(
         self,
@@ -73,8 +57,7 @@ class OpenRouterClient:
         model: Optional[str] = None,
         max_tokens: int = 2000,
         temperature: float = 0.7,
-        stream: bool = False,
-        try_alternatives: bool = True
+        stream: bool = False
     ) -> Optional[str]:
         """
         Generate response using OpenRouter API.
@@ -85,33 +68,20 @@ class OpenRouterClient:
             max_tokens: Maximum tokens to generate
             temperature: Temperature for generation
             stream: Whether to stream response (not fully supported yet)
-            try_alternatives: If model not found (404), try alternative model names
             
         Returns:
             Generated text or None on error
         """
-        if not self.api_key:
+        api_key = await self._get_api_key()
+        if not api_key:
             logger.error("OpenRouter API key not configured")
             return None
         
-        model = model or self.default_model
-        models_to_try = [model]
+        if not model:
+            logger.error("Model must be specified")
+            return None
         
-        # If 404 error and try_alternatives, add alternative model names
-        if try_alternatives:
-            # Extract provider/model name
-            if model in self.free_models.values():
-                # Find which key this model belongs to
-                for key, val in self.free_models.items():
-                    if val == model and key in self.free_models_alt:
-                        models_to_try.append(self.free_models_alt[key])
-                        break
-            elif "gpt" in model.lower() and ":free" not in model:
-                models_to_try.append(model + ":free")
-            elif "claude" in model.lower() and ":free" not in model:
-                models_to_try.append(model + ":free")
-            elif "llama" in model.lower() and ":free" not in model:
-                models_to_try.append(model + ":free")
+        models_to_try = [model]
         
         for attempt_model in models_to_try:
             try:
@@ -119,7 +89,7 @@ class OpenRouterClient:
                     response = await client.post(
                         f"{self.base_url}/chat/completions",
                         headers={
-                            "Authorization": f"Bearer {self.api_key}",
+                            "Authorization": f"Bearer {api_key}",
                             "HTTP-Referer": getattr(settings, 'OPENROUTER_REFERER_URL', 'https://mockday.io'),
                             "X-Title": "MockDay AI Interview Platform"
                         },
@@ -176,17 +146,7 @@ class OpenRouterClient:
                     except:
                         pass
                     
-                    # Check if it's upstream rate limit (Google rate-limiting the free model)
-                    error_msg = error_data.get("error", {}).get("message", "")
-                    if "upstream" in error_msg.lower() or "rate-limited upstream" in str(error_data):
-                        logger.warning(
-                            f"OpenRouter free model rate-limited by Google upstream. "
-                            f"This is expected - free models are shared. Falling back to Gemini direct API. "
-                            f"To avoid this, either: 1) Use paid OpenRouter model, 2) Add your Google API key to OpenRouter (BYOK), "
-                            f"or 3) Use Gemini directly (already configured as fallback)."
-                        )
-                    else:
-                        logger.warning(f"OpenRouter rate limit exceeded: {e.response.text}")
+                    logger.warning(f"OpenRouter rate limit exceeded: {e.response.text}")
                     return None
                 elif e.response.status_code == 401:
                     logger.error("OpenRouter API key invalid or expired")
@@ -206,57 +166,4 @@ class OpenRouterClient:
                 continue  # Try next model
         
         return None
-    
-    async def generate_response_with_fallback(
-        self,
-        prompt: str,
-        model: Optional[str] = None,
-        max_tokens: int = 2000,
-        temperature: float = 0.7,
-        fallback_to_gemini: bool = True
-    ) -> Optional[str]:
-        """
-        Generate response with automatic fallback to Gemini if OpenRouter fails.
-        
-        Args:
-            prompt: Input prompt
-            model: Model to use
-            max_tokens: Maximum tokens to generate
-            temperature: Temperature for generation
-            fallback_to_gemini: Whether to fallback to Gemini on error
-            
-        Returns:
-            Generated text or None on error
-        """
-        # Try OpenRouter first
-        response = await self.generate_response(
-            prompt=prompt,
-            model=model,
-            max_tokens=max_tokens,
-            temperature=temperature
-        )
-        
-        if response:
-            return response
-        
-        # Fallback to Gemini if enabled
-        if fallback_to_gemini:
-            logger.info("OpenRouter failed, falling back to Gemini")
-            try:
-                from shared.providers.gemini_client import gemini_client
-                return await gemini_client.generate_response(
-                    prompt=prompt,
-                    model="gemini-2.5-flash",
-                    max_tokens=max_tokens,
-                    temperature=temperature
-                )
-            except Exception as e:
-                logger.error(f"Gemini fallback also failed: {e}")
-                return None
-        
-        return None
-
-
-# Global OpenRouter client instance
-openrouter_client = OpenRouterClient()
 

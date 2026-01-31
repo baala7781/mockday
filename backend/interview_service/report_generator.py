@@ -1,7 +1,8 @@
 """Report generation for completed interviews."""
 from typing import Dict, Any, Optional, List
 from interview_service.models import InterviewState, Evaluation
-from shared.providers.gemini_client import gemini_client
+from shared.providers.openrouter_pool_client import generate_report as openrouter_generate_report
+from interview_service.llm_helpers import get_byok_key
 from shared.db.firestore_client import firestore_client
 from datetime import datetime, timezone
 import uuid
@@ -207,20 +208,22 @@ def calculate_overall_score(state: InterviewState) -> float:
     expected_questions = state.total_questions or 15
     completion_ratio = min(1.0, questions_answered / expected_questions) if expected_questions > 0 else 0.0
     
-    # Apply completion factor: Score is multiplied by completion ratio
-    # This ensures that answering 2/15 questions correctly doesn't give 85%
-    # Instead, if you answered 2/15 (13% completion) and got perfect scores,
-    # your overall score would be: base_score * 0.13
-    adjusted_score = base_score * completion_ratio
-    
-    # Additional penalty for very incomplete interviews
-    # If less than 50% complete, apply additional penalty
-    if completion_ratio < 0.5:
-        # Cap at 60% of base score for very incomplete interviews
-        adjusted_score = min(adjusted_score, base_score * 0.6)
+    # Apply strict completion penalty for incomplete interviews
+    # CRITICAL: Very incomplete interviews (≤3 questions) get heavy penalty
+    if questions_answered <= 3:
+        # Hard cap: 1 question = max 30% of base score (not 70%!)
+        max_score_ratio = 0.3  # Fixed cap for ≤3 questions
+        adjusted_score = min(base_score * completion_ratio, base_score * max_score_ratio)
+        logger.info(f"📊 Very incomplete interview ({questions_answered} questions): capping score at {max_score_ratio*100:.0f}% of base score (base: {base_score:.2f}, final: {adjusted_score:.2f})")
+    elif completion_ratio < 0.5:
+        # Less than 50% complete: Cap at 60% of base score
+        adjusted_score = min(base_score * completion_ratio, base_score * 0.6)
     elif completion_ratio < 0.75:
-        # Cap at 80% of base score for partially complete interviews
-        adjusted_score = min(adjusted_score, base_score * 0.8)
+        # Less than 75% complete: Cap at 80% of base score
+        adjusted_score = min(base_score * completion_ratio, base_score * 0.8)
+    else:
+        # 75%+ complete: Apply completion ratio normally
+        adjusted_score = base_score * completion_ratio
     
     # Ensure score doesn't exceed base_score (can't get more than 100% of what you answered)
     final_score = min(adjusted_score, base_score)
@@ -334,8 +337,9 @@ async def generate_interview_report(
         logger.info(f"📊 Calculated metrics - Overall: {overall_score:.2f}, Skills: {len(skill_scores)}, Coding: {coding_performance['total_coding_questions']} questions")
         logger.info(f"📊 Interview completion: {questions_answered}/{expected_questions} questions ({questions_answered/expected_questions*100:.0f}%), is_complete={is_complete}")
         
-        # Generate report using LLM with completion context
-        report_data = await gemini_client.generate_report(
+        # Generate report using OpenRouter with claude-3-sonnet
+        byok_key = await get_byok_key(interview_id)
+        report_data = await openrouter_generate_report(
             interview_transcript=transcript,
             questions=questions,
             answers=answers,
@@ -343,7 +347,8 @@ async def generate_interview_report(
             user_profile=user_profile,
             is_complete=is_complete,
             expected_questions=expected_questions,
-            actual_questions=questions_answered
+            actual_questions=questions_answered,
+            api_key=byok_key
         )
         
         if not report_data:

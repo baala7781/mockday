@@ -1,7 +1,7 @@
 """Answer evaluation using LLM."""
 from typing import Dict, Any, Optional
 from interview_service.models import Evaluation, Question, QuestionType, DifficultyLevel, Answer, InterviewState
-from shared.providers.gemini_client import gemini_client
+from interview_service.llm_helpers import generate_with_task_and_byok
 from interview_service.memory_controller import get_conversation_context_for_evaluation
 from interview_service.difficulty_manager import calculate_smoothed_difficulty, get_recent_evaluations_for_skill
 import json
@@ -127,7 +127,6 @@ Return a VALID JSON object with:
   "strengths": ["specific strength 1", "specific strength 2"] - ONLY if genuinely demonstrated,
   "weaknesses": ["specific weakness 1", "specific weakness 2"] - be specific about what was missing or incorrect,
   "suggestions": ["actionable suggestion 1", "actionable suggestion 2"],
-  "next_difficulty": 1 to 4,
   "skill_assessment": {{
       "{question.skill}": float between 0.0 and 1.0
   }}
@@ -143,13 +142,7 @@ Rules:
 
 - Strengths/weaknesses must be SPECIFIC to the answer given - NO generic statements.
 
-- Next difficulty logic:
-
-  - Score >= 0.8 → increase difficulty by 1 (max 4)
-
-  - Score >= 0.6 → keep same
-
-  - Score < 0.6 → decrease by 1 (min 1)"""
+- DO NOT include "next_difficulty" - difficulty adjustment is handled separately."""
 
     # Log what we're sending to LLM for evaluation
     logger.info(f"🤖 [LLM Evaluation] Sending to LLM for evaluation:")
@@ -162,12 +155,13 @@ Rules:
         logger.info(f"   Code: {answer.code[:200]}..." if len(answer.code) > 200 else f"   Code: {answer.code}")
 
     try:
-        response = await gemini_client.generate_response(
+        # Use OpenRouter with claude-3-haiku for answer evaluation
+        response = await generate_with_task_and_byok(
+            task="answer_evaluation",
             prompt=prompt,
-            model="gemini-2.5-flash-lite",
             max_tokens=1000,
             temperature=0.3,
-            interview_id=state.interview_id if state else None  # Pass interview_id for BYOK support
+            interview_id=state.interview_id if state else None
         )
         
         if response:
@@ -179,44 +173,8 @@ Rules:
             if json_start >= 0 and json_end > json_start:
                 data = json.loads(response[json_start:json_end])
                 
-                # Determine next difficulty using smoothed progression
+                # Extract score and evaluation data (flow decisions are separate)
                 score = float(data.get("score", 0.5))
-                suggested_difficulty = data.get("next_difficulty", question.difficulty.value)
-                
-                # Use smoothed difficulty calculation (moving average of last 2-3 answers)
-                if state:
-                    recent_evaluations = get_recent_evaluations_for_skill(state, question.skill, window_size=3)
-                    # Add current evaluation to the list for smoothing
-                    temp_evaluation = Evaluation(
-                        score=score,
-                        feedback="",
-                        next_difficulty=question.difficulty
-                    )
-                    recent_evaluations.append(temp_evaluation)
-                    
-                    # Calculate smoothed difficulty
-                    next_difficulty = calculate_smoothed_difficulty(
-                        question.difficulty,
-                        recent_evaluations,
-                        window_size=3
-                    )
-                else:
-                    # Fallback to simple algorithm if no state
-                    if score >= 0.8:
-                        next_difficulty = DifficultyLevel(min(question.difficulty.value + 1, 4))
-                    elif score >= 0.6:
-                        next_difficulty = question.difficulty
-                    else:
-                        next_difficulty = DifficultyLevel(max(question.difficulty.value - 1, 1))
-                
-                # Log if LLM suggestion differs significantly (for monitoring)
-                if isinstance(next_difficulty, DifficultyLevel):
-                    next_difficulty_value = next_difficulty.value
-                else:
-                    next_difficulty_value = next_difficulty
-                    
-                if abs(int(suggested_difficulty) - next_difficulty_value) > 1:
-                    logger.debug(f"LLM suggested difficulty {suggested_difficulty} but smoothed algorithm chose {next_difficulty_value} based on score {score:.2f}")
                 
                 evaluation = Evaluation(
                     score=score,
@@ -224,16 +182,12 @@ Rules:
                     strengths=data.get("strengths", []),
                     weaknesses=data.get("weaknesses", []),
                     suggestions=data.get("suggestions", []),
-                    next_difficulty=DifficultyLevel(next_difficulty),
                     skill_assessment=data.get("skill_assessment", {})
                 )
                 
                 # Log evaluation result
-                logger.info(f"🔵🔵🔵🔵")
-                logger.info(f"   Score: {score:.2f}/1.0")
                 logger.info(f"🤖 [LLM Evaluation] Evaluation Result:")
                 logger.info(f"   Score: {score:.2f}/1.0")
-                logger.info(f"   Next Difficulty: {next_difficulty} (was {question.difficulty})")
                 logger.info(f"   Feedback: {evaluation.feedback[:150]}..." if len(evaluation.feedback) > 150 else f"   Feedback: {evaluation.feedback}")
                 logger.info(f"   Strengths: {evaluation.strengths}")
                 logger.info(f"   Weaknesses: {evaluation.weaknesses}")
@@ -246,7 +200,9 @@ Rules:
     return Evaluation(
         score=0.5,
         feedback="Unable to evaluate answer automatically.",
-        next_difficulty=question.difficulty
+        strengths=[],
+        weaknesses=[],
+        suggestions=[]
     )
 
 
@@ -302,12 +258,13 @@ Provide JSON response:
 Return only valid JSON:"""
 
     try:
-        response = await gemini_client.generate_response(
+        # Use OpenRouter with claude-3-haiku for code evaluation
+        response = await generate_with_task_and_byok(
+            task="answer_evaluation",
             prompt=prompt,
-            model="gemini-2.5-flash-lite",
             max_tokens=1500,
             temperature=0.3,
-            interview_id=state.interview_id if state else None  # Pass interview_id for BYOK support
+            interview_id=None  # Code evaluation doesn't have interview context
         )
         
         if response:
@@ -322,7 +279,6 @@ Return only valid JSON:"""
                     strengths=data.get("strengths", []),
                     weaknesses=data.get("weaknesses", []),
                     suggestions=data.get("suggestions", []),
-                    next_difficulty=DifficultyLevel(2),  # Default for coding
                     skill_assessment={
                         "correctness": data.get("correctness_score", 0.5),
                         "efficiency": data.get("efficiency_score", 0.5),
@@ -336,6 +292,8 @@ Return only valid JSON:"""
     return Evaluation(
         score=0.5,
         feedback="Unable to evaluate code automatically.",
-        next_difficulty=DifficultyLevel(2)
+        strengths=[],
+        weaknesses=[],
+        suggestions=[]
     )
 

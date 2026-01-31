@@ -332,8 +332,35 @@ async def add_answer_to_state(
         state.answered_skills[skill] = []
     state.answered_skills[skill].append(evaluation)
     
-    # Update current difficulty
-    state.current_difficulty = evaluation.next_difficulty
+    # Use flow decisions to determine next action and adjust difficulty
+    from interview_service.flow_decisions import categorize_answer, decide_next_action
+    from interview_service.models import NextAction, DifficultyLevel
+    
+    answer_quality = categorize_answer(
+        score=evaluation.score,
+        answer_text="",  # Answer text not available in this context
+        question_type=question.type
+    )
+    
+    # Count consecutive "no idea" answers for this skill
+    consecutive_stuck = 0
+    if skill in state.answered_skills and len(state.answered_skills[skill]) > 0:
+        recent_evals = state.answered_skills[skill][-3:]  # Last 3 (including current)
+        for ev in recent_evals[:-1]:  # Exclude current evaluation
+            ev_quality = categorize_answer(ev.score, "", question.type)
+            if ev_quality.value == "no_idea":
+                consecutive_stuck += 1
+            else:
+                break
+    
+    next_action = decide_next_action(answer_quality, consecutive_stuck)
+    
+    # Adjust difficulty based on flow decision
+    if next_action == NextAction.INCREASE_DIFFICULTY:
+        state.current_difficulty = DifficultyLevel(min(state.current_difficulty.value + 1, 4))
+    elif next_action == NextAction.SWITCH_TOPIC:
+        # Reset difficulty to basic when switching topics
+        state.current_difficulty = DifficultyLevel.BASIC
     
     # Add question to asked questions
     state.questions_asked.append(question)

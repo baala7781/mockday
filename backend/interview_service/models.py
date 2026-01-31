@@ -65,6 +65,22 @@ class InterviewFlowState(str, Enum):
     INTERVIEW_COMPLETE = "interview_complete"  # Interview finished
 
 
+class AnswerQuality(str, Enum):
+    """Answer quality buckets for flow decisions (decoupled from numeric scores)."""
+    NO_IDEA = "no_idea"      # Score < 0.3 or contains "don't know" phrases
+    PARTIAL = "partial"      # Score 0.3-0.6, incomplete
+    GOOD = "good"            # Score 0.6-0.8, adequate
+    STRONG = "strong"        # Score >= 0.8, excellent
+
+
+class NextAction(str, Enum):
+    """Next action for interview flow (human-like decision making)."""
+    FOLLOW_UP = "follow_up"              # Ask follow-up question (for PARTIAL answers)
+    CONTINUE = "continue"                # Move to next question (for GOOD/NO_IDEA)
+    SWITCH_TOPIC = "switch_topic"        # Switch to different skill/topic (stuck)
+    INCREASE_DIFFICULTY = "increase_difficulty"  # Increase difficulty (for STRONG)
+
+
 # Resume Models
 class Skill(BaseModel):
     """Skill model."""
@@ -134,13 +150,12 @@ class Answer(BaseModel):
 
 
 class Evaluation(BaseModel):
-    """Evaluation model."""
+    """Evaluation model (scoring only - flow decisions are separate)."""
     score: float = Field(ge=0.0, le=1.0)
     feedback: str
     strengths: List[str] = Field(default_factory=list)
     weaknesses: List[str] = Field(default_factory=list)
     suggestions: List[str] = Field(default_factory=list)
-    next_difficulty: DifficultyLevel
     skill_assessment: Dict[str, float] = Field(default_factory=dict)
 
 

@@ -118,6 +118,12 @@ export async function uploadResume(token: string, file: File): Promise<{ status:
   return res.json()
 }
 
+export async function deleteResume(token: string, resumeId: string): Promise<void> {
+  await authedFetch(`/resumes/${resumeId}`, token, {
+    method: 'DELETE',
+  })
+}
+
 export interface EmailVerificationStatus {
   email: string;
   emailVerified: boolean;

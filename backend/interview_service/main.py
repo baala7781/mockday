@@ -31,7 +31,7 @@ from shared.db.redis_client import redis_client
 from shared.db.firestore_client import firestore_client
 from interview_service.models import (
     StartInterviewRequest, StartInterviewResponse, SkillWeightResponse,
-    Answer, AnswerResponse, InterviewRole, InterviewPhase, InterviewFlowState, InterviewStatus
+    Answer, AnswerResponse, InterviewRole, InterviewPhase, InterviewFlowState, InterviewStatus, DifficultyLevel
 )
 from interview_service.resume_analyzer import get_resume_data
 from interview_service.skill_weighting import calculate_skill_weights, distribute_questions
@@ -689,6 +689,65 @@ async def add_resume_metadata(
         raise HTTPException(status_code=500, detail=f"Failed to add resume: {e}")
 
 
+@app.delete("/api/resumes/{resume_id}")
+async def delete_resume(
+    resume_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """Delete a resume from user profile."""
+    try:
+        user_id = user["uid"]
+        
+        # Get current profile (try cache first)
+        cache_key = f"user_profile:{user_id}"
+        profile = None
+        try:
+            cached_profile = await redis_client.get(cache_key)
+            if cached_profile:
+                profile = cached_profile
+        except Exception as e:
+            logger.debug(f"Redis cache read failed (non-critical): {e}")
+        
+        if not profile:
+            profile = await firestore_client.get_document("users", user_id)
+        
+        if not profile:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        
+        resumes = profile.get("resumes", [])
+        
+        # Find and remove the resume
+        original_count = len(resumes)
+        resumes = [r for r in resumes if str(r.get("id")) != str(resume_id)]
+        
+        if len(resumes) == original_count:
+            raise HTTPException(status_code=404, detail="Resume not found")
+        
+        # Update profile with updated resumes list
+        success = await firestore_client.set_document(
+            "users", 
+            user_id, 
+            {"resumes": resumes}, 
+            merge=True
+        )
+        
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to delete resume")
+        
+        # Invalidate Redis cache
+        try:
+            await redis_client.delete(cache_key)
+        except Exception as e:
+            logger.debug(f"Redis cache delete failed (non-critical): {e}")
+        
+        return {"status": "ok", "message": "Resume deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting resume: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to delete resume: {e}")
+
+
 # ============================================================================
 # Interview Endpoints
 # ============================================================================
@@ -942,11 +1001,81 @@ async def submit_answer(
                     state.answered_skills[current_question.skill] = []
                 state.answered_skills[current_question.skill].append(evaluation)
         
-        # Update phase question count and difficulty
+        # Update phase question count
         update_phase_question_count(state)
-        state.current_difficulty = evaluation.next_difficulty
         state.total_questions += 1
         state.questions_asked.append(current_question)
+        
+        # Use flow decisions to determine next action and adjust difficulty
+        from interview_service.flow_decisions import categorize_answer, decide_next_action
+        from interview_service.models import NextAction
+        
+        answer_quality = categorize_answer(
+            score=evaluation.score,
+            answer_text=answer.answer or "",
+            question_type=current_question.type
+        )
+        
+        # Count consecutive "no idea" answers for this skill
+        consecutive_stuck = 0
+        if current_question.skill in state.answered_skills:
+            recent_evals = state.answered_skills[current_question.skill][-3:]  # Last 3
+            for ev in recent_evals:
+                if categorize_answer(ev.score, "", current_question.type) == answer_quality.NO_IDEA:
+                    consecutive_stuck += 1
+                else:
+                    break
+        
+        next_action = decide_next_action(answer_quality, consecutive_stuck)
+        
+        # Adjust difficulty based on flow decision
+        if next_action == NextAction.INCREASE_DIFFICULTY:
+            state.current_difficulty = DifficultyLevel(min(state.current_difficulty.value + 1, 4))
+            logger.info(f"⬆️ Difficulty increased to {state.current_difficulty.value} (strong answer)")
+        elif next_action == NextAction.SWITCH_TOPIC:
+            # Reset difficulty to basic when switching topics (don't penalize)
+            state.current_difficulty = DifficultyLevel.BASIC
+            logger.info(f"🔄 Topic switch - difficulty reset to BASIC")
+        elif next_action == NextAction.FOLLOW_UP:
+            # Generate follow-up question on same topic
+            logger.info(f"🔄 Follow-up question needed for skill: {current_question.skill}")
+            from interview_service.question_generator import generate_question
+            from interview_service.resume_analyzer import get_resume_data
+            
+            # Get resume data for context
+            resume_data = state.resume_data
+            
+            # Generate follow-up question on the same skill/topic
+            follow_up_question = await generate_question(
+                skill=current_question.skill,
+                difficulty=state.current_difficulty,
+                role=state.role.value,
+                resume_data=resume_data,
+                state=state,
+                previous_questions=[current_question.question],
+                previous_answers=[answer.answer or ""],
+                candidate_name=candidate_name,
+                is_follow_up=True  # Signal that this is a follow-up
+            )
+            
+            if follow_up_question:
+                # Update state with follow-up question
+                state.current_question = follow_up_question
+                state.current_skill = follow_up_question.skill
+                
+                # Save state
+                await save_interview_state(state)
+                await save_interview_state_to_firestore(state)
+                
+                return AnswerResponse(
+                    evaluation=evaluation,
+                    next_question=follow_up_question,
+                    progress=calculate_progress(state),
+                    completed=False
+                )
+            else:
+                # Fallback: if follow-up generation fails, continue normally
+                logger.warning("⚠️ Follow-up question generation failed, continuing with normal flow")
         
         # Check if interview should continue (time-based: 30 minutes)
         time_limit_reached = False
